@@ -429,6 +429,13 @@ body.gated{overflow:hidden}
 .adm-form{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
 .adm-form input{min-height:40px;padding:0 10px;border:1px solid var(--line);border-radius:10px;font-size:15px;background:#FBFDFD}
 .adm-form input:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-l)}
+.adm-form label.adm-fld{display:flex;flex-direction:column;gap:5px;margin:0}
+.adm-fld>span{font-size:11.5px;color:var(--ink3);line-height:1.1}
+.adm-fld input{width:100%}
+.adm-fld.f-code{flex:1 1 160px}
+.adm-fld.f-note{flex:1 1 140px}
+.adm-fld.f-num{flex:0 0 92px}
+.adm-fld.f-btn{flex:0 0 auto}
 .adm-list{display:flex;flex-direction:column;gap:8px}
 .adm-item{display:flex;align-items:center;gap:10px;flex-wrap:wrap;border:1px solid var(--line);border-radius:11px;padding:10px 12px}
 .adm-item .mono{font-family:ui-monospace,Menlo,Consolas,monospace}
@@ -440,7 +447,7 @@ body.gated{overflow:hidden}
 .adm-empty{font-size:13px;color:var(--ink3);padding:12px 0;text-align:center}
 #admPass{width:100%;min-height:46px;padding:0 14px;border:1px solid var(--line);border-radius:12px;font-size:16px;background:#FBFDFD;box-sizing:border-box}
 #admPass:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-l)}
-@media(max-width:520px){ .adm-form input{width:100%} }
+@media(max-width:520px){ .adm-form input{width:100%} .adm-fld.f-code,.adm-fld.f-note{flex:1 1 100%} .adm-fld.f-num{flex:1 1 40%} .adm-fld.f-btn{flex:1 1 100%} .adm-fld.f-btn>span{display:none} }
 
 </style>
 </head>
@@ -895,15 +902,25 @@ body.gated{overflow:hidden}
         </div>
 
         <div class="adm-sec">
-          <div class="adm-sec-h">邀请码（发码 / 停用）</div>
+          <div class="adm-sec-h">邀请码（发码 / 停用 / 删除）</div>
           <div class="adm-form">
-            <input id="admNewCode" placeholder="邀请码" maxlength="24">
-            <input id="admNewMax" type="number" value="1" min="1" style="width:74px">
-            <input id="admNewDays" type="number" value="30" min="1" style="width:74px">
-            <input id="admNewNote" placeholder="备注：发给谁" maxlength="40">
-            <button class="btn sm pri" id="admAdd" type="button">新建</button>
-            <button class="btn sm" id="admRand" type="button">随机</button>
+            <label class="adm-fld f-code"><span>邀请码</span>
+              <input id="admNewCode" placeholder="如 VIP-ABC123" maxlength="24"></label>
+            <label class="adm-fld f-num"><span>可用次数</span>
+              <input id="admNewMax" type="number" value="1" min="1"></label>
+            <label class="adm-fld f-num"><span>有效天数</span>
+              <input id="admNewDays" type="number" value="30" min="1"></label>
+            <label class="adm-fld f-note"><span>备注（可选）</span>
+              <input id="admNewNote" placeholder="发给谁" maxlength="40"></label>
+            <div class="adm-fld f-btn">
+              <span>&nbsp;</span>
+              <div style="display:flex;gap:8px">
+                <button class="btn sm pri" id="admAdd" type="button">新建</button>
+                <button class="btn sm" id="admRand" type="button">随机</button>
+              </div>
+            </div>
           </div>
+          <p class="adm-tip" style="margin-top:2px">可用次数：这个码能被登录几次（1 次 = 只给一个人用）；有效天数：多少天后自动失效。</p>
           <div class="adm-err" id="admCodeErr"></div>
           <div class="adm-list" id="admCodes"><div class="adm-empty">加载中…</div></div>
         </div>
@@ -3371,11 +3388,13 @@ function renderAdminCodes(list){
         ? '<button class="btn sm dan" data-admcoff="' + esc(c.code) + '">停用</button>'
         : '<button class="btn sm" data-admcon="' + esc(c.code) + '">启用</button>') +
       '<button class="btn sm" data-admcopy="' + esc(c.code) + '">复制</button>' +
+      '<button class="btn sm dan" data-admcdel="' + esc(c.code) + '">删除</button>' +
       '</div>';
   });
   box.innerHTML = h;
   box.querySelectorAll('[data-admcoff]').forEach(function(b){ b.onclick = function(){ admSetCode(b.getAttribute('data-admcoff'), false); }; });
   box.querySelectorAll('[data-admcon]').forEach(function(b){ b.onclick = function(){ admSetCode(b.getAttribute('data-admcon'), true); }; });
+  box.querySelectorAll('[data-admcdel]').forEach(function(b){ b.onclick = function(){ admDelCode(b.getAttribute('data-admcdel')); }; });
   box.querySelectorAll('[data-admcopy]').forEach(function(b){ b.onclick = function(){
     var v = b.getAttribute('data-admcopy');
     if (navigator.clipboard) navigator.clipboard.writeText(v);
@@ -3388,6 +3407,15 @@ function admDelUser(phone){
   cloudRpc('admin_del_user', { p_token: adminToken, p_phone: phone }).then(adminLoad);
 }
 function admSetCode(code, active){ cloudRpc('admin_set_code', { p_token: adminToken, p_code: code, p_active: active }).then(adminLoad); }
+function admDelCode(code){
+  if (String(code).toUpperCase() === 'ADMIN-XIULI'){ alert('这是你自己的管理员码，不能删除。需要停用请点「停用」。'); return; }
+  if (!confirm('确定删除邀请码「' + code + '」？\n删除后此码立即失效且无法恢复，已经用它登录过的人不受影响。')) return;
+  cloudRpc('admin_del_code', { p_token: adminToken, p_code: code }).then(function(res){
+    var d = (res && res.data) || {};
+    if (d.ok !== true) alert(d.msg || '删除失败');
+    adminLoad();
+  });
+}
 function admAddCode(){
   var code = (admEl('admNewCode').value || '').trim();
   var max  = parseInt(admEl('admNewMax').value, 10) || 1;
