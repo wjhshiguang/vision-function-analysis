@@ -1,0 +1,46 @@
+{
+  "name": "视功能自动分析工作台",
+  "short_name": "视功能分析",
+  "description": "眼镜店 / 视光师专用：视功能检查数据录入、自动分析、报告生成与复查管理。数据仅保存在本机浏览器。",
+  "id": "vision-analysis-workbench",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": ["standalone", "fullscreen", "minimal-ui"],
+  "orientation": "any",
+  "background_color": "#F4F7F8",
+  "theme_color": "#0E8A8D",
+  "lang": "zh-CN",
+  "dir": "ltr",
+  "categories": ["medical", "health", "productivity"],
+  "prefer_related_applications": false,
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "icons/apple-touch-icon.png", "sizes": "180x180", "type": "image/png", "purpose": "any" }
+  ],
+  "shortcuts": [
+    {
+      "name": "新建检查",
+      "short_name": "新建",
+      "description": "直接进入检查数据录入",
+      "url": "./index.html?view=entry",
+      "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "今天要处理",
+      "short_name": "待处理",
+      "description": "查看复查到期与逾期顾客",
+      "url": "./index.html?view=today",
+      "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "顾客档案",
+      "short_name": "档案",
+      "description": "查看全部检查记录",
+      "url": "./index.html?view=archive",
+      "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    }
+  ]
+}

@@ -1,0 +1,3004 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>视功能自动分析工作台</title>
+<meta name="description" content="眼镜店/视光师专用：视功能检查数据录入、自动分析、报告生成与复查管理。数据仅保存在本机浏览器。">
+<meta name="theme-color" content="#0E8A8D">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="视功能分析">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" href="icons/favicon.png">
+<!-- 本工作台为单文件内联应用（零外部依赖），数据通过浏览器 localStorage 本地保存，不经过任何云端/服务器存储 -->
+<style>
+:root{
+  --bg:#F4F7F8; --card:#FFFFFF; --line:#E5ECEE; --line2:#EEF3F4;
+  --ink:#16282C; --ink2:#5A7076; --ink3:#8C9DA3;
+  --primary:#0E8A8D; --primary-d:#0A5C70; --primary-l:#E7F4F4;
+  --danger:#D14343; --danger-l:#FDEDED; --warn:#B9761A; --warn-l:#FDF5E8;
+  --ok:#2C8159; --ok-l:#EAF6EF; --info:#2A6FA8; --info-l:#EBF3FA;
+  --radius:14px; --radius-s:10px;
+  --shadow:0 1px 2px rgba(18,45,50,.05), 0 6px 18px rgba(18,45,50,.05);
+  --sidebar-w:236px;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0}
+/* 关键：禁止 iOS Safari / 微信内置浏览器 / Android WebView 按系统或微信"字体大小"设置把整页文字放大
+   （这是手机端打开后"界面被放大、比例失调"的根因，必须先声明 100% 归零） */
+html{-webkit-text-size-adjust:100%;-moz-text-size-adjust:100%;text-size-adjust:100%}
+/* 禁止双击缩放误触（按钮/卡片），保留双指捏合缩放以不影响可访问性 */
+button,.btn,.chk,.pk-item,select,input,label{touch-action:manipulation}
+body{
+  background:var(--bg); color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  font-size:14px; line-height:1.6; -webkit-font-smoothing:antialiased;
+}
+button,input,select,textarea{font-family:inherit;color:inherit}
+svg{display:block}
+.hidden{display:none !important}
+
+/* ---------- 布局 ---------- */
+.app{display:flex;min-height:100vh}
+.sidebar{
+  width:var(--sidebar-w);flex:0 0 var(--sidebar-w);background:var(--card);
+  border-right:1px solid var(--line);position:sticky;top:0;height:100vh;
+  display:flex;flex-direction:column;padding:20px 14px;gap:18px;
+}
+.brand{display:flex;align-items:center;gap:10px;padding:0 6px}
+.brand .logo{width:38px;height:38px;border-radius:11px;background:linear-gradient(145deg,#0E8A8D,#0A5C70);display:flex;align-items:center;justify-content:center;flex:0 0 38px}
+.brand h1{font-size:15px;margin:0;font-weight:650;letter-spacing:.2px}
+.brand p{margin:1px 0 0;font-size:11.5px;color:var(--ink3)}
+.userbox{display:flex;align-items:center;gap:10px;background:var(--primary-l);border-radius:var(--radius-s);padding:10px 12px}
+.userbox .av{width:32px;height:32px;border-radius:50%;background:var(--card);color:var(--primary-d);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex:0 0 32px}
+.userbox .nm{font-size:13px;font-weight:600;line-height:1.3}
+.userbox .sub{font-size:11px;color:var(--ink2)}
+.nav{display:flex;flex-direction:column;gap:4px;flex:1}
+.nav button{
+  display:flex;align-items:center;gap:10px;width:100%;padding:10px 12px;border:0;background:transparent;
+  border-radius:var(--radius-s);cursor:pointer;font-size:13.5px;color:var(--ink2);text-align:left;transition:.15s;
+}
+.nav button:hover{background:var(--line2);color:var(--ink)}
+.nav button.on{background:var(--primary);color:#fff;font-weight:600;box-shadow:0 4px 12px rgba(14,138,141,.22)}
+.nav button.on svg{stroke:#fff}
+.nav .badge{margin-left:auto;background:var(--danger);color:#fff;font-size:11px;font-weight:700;border-radius:99px;padding:1px 7px;min-width:20px;text-align:center}
+.nav button.on .badge{background:#fff;color:var(--primary-d)}
+.sidefoot{display:flex;flex-direction:column;gap:8px;border-top:1px solid var(--line);padding-top:14px}
+.sidefoot .row{display:flex;gap:8px}
+.sidefoot .row .btn{flex:1}
+.sync{display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--ok);padding:0 6px}
+.sync .dot{width:7px;height:7px;border-radius:50%;background:currentColor;box-shadow:0 0 0 3px var(--ok-l)}
+
+.main{flex:1;min-width:0;display:flex;flex-direction:column}
+.topbar{
+  position:sticky;top:0;z-index:20;background:rgba(244,247,248,.92);backdrop-filter:blur(8px);
+  padding:16px 24px 12px;border-bottom:1px solid var(--line);
+  display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+}
+.topbar h2{margin:0;font-size:19px;font-weight:680;letter-spacing:.2px}
+.topbar .desc{font-size:12px;color:var(--ink3);margin-top:1px}
+.topbar .spacer{flex:1}
+.content{padding:18px 24px 40px;display:flex;flex-direction:column;gap:16px;max-width:1180px;width:100%}
+
+/* ---------- 卡片 ---------- */
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px}
+.card.flat{box-shadow:none}
+.card-h{display:flex;align-items:center;gap:9px;margin-bottom:14px}
+.card-h h3{margin:0;font-size:15px;font-weight:650}
+.card-h .ico{width:26px;height:26px;border-radius:8px;background:var(--primary-l);display:flex;align-items:center;justify-content:center;flex:0 0 26px}
+.card-h .tag{margin-left:auto;font-size:11.5px;color:var(--ink3)}
+.sec-title{font-size:12.5px;font-weight:700;color:var(--primary-d);letter-spacing:.4px;margin:18px 0 10px;display:flex;align-items:center;gap:8px}
+.sec-title:first-child{margin-top:0}
+.sec-title:after{content:"";flex:1;height:1px;background:var(--line)}
+
+/* ---------- 按钮 ---------- */
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  min-height:38px;padding:0 14px;border-radius:var(--radius-s);border:1px solid var(--line);
+  background:var(--card);color:var(--ink);font-size:13px;font-weight:600;cursor:pointer;transition:.15s;white-space:nowrap;
+}
+.btn:hover{border-color:#CFDDE0;background:#FBFDFD}
+.btn:active{transform:translateY(1px)}
+.btn.pri{background:var(--primary);border-color:var(--primary);color:#fff}
+.btn.pri:hover{background:var(--primary-d);border-color:var(--primary-d)}
+.btn.dan{color:var(--danger);border-color:#F0CFCF}
+.btn.dan:hover{background:var(--danger-l)}
+.btn.sm{min-height:32px;padding:0 10px;font-size:12.5px;border-radius:8px}
+.btn.blk{width:100%}
+.btn[disabled]{opacity:.5;cursor:not-allowed}
+
+/* ---------- 表单 ---------- */
+.grid{display:grid;gap:12px}
+.g2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.g3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.g4{grid-template-columns:repeat(4,minmax(0,1fr))}
+.field{display:flex;flex-direction:column;gap:5px;min-width:0}
+.field label{font-size:12px;color:var(--ink2);font-weight:600}
+.field .hint{font-size:11px;color:var(--ink3);font-weight:400}
+.field input,.field select,.field textarea{
+  width:100%;min-height:40px;padding:8px 11px;border:1px solid var(--line);border-radius:var(--radius-s);
+  background:#FCFDFD;font-size:16px;outline:none;transition:.15s;
+}
+.field textarea{min-height:64px;resize:vertical;line-height:1.5}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--primary);background:#fff;box-shadow:0 0 0 3px rgba(14,138,141,.1)}
+.field.invalid input,.field.invalid select{border-color:var(--danger);background:var(--danger-l)}
+.unit{position:relative}
+.unit input{padding-right:38px}
+.unit span{position:absolute;right:11px;top:50%;transform:translateY(-50%);font-size:12px;color:var(--ink3);pointer-events:none}
+.checks{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:8px}
+.chk{display:flex;align-items:flex-start;gap:8px;padding:9px 11px;border:1px solid var(--line);border-radius:var(--radius-s);background:#FCFDFD;cursor:pointer;font-size:13px;line-height:1.45}
+.chk:hover{border-color:#CFDDE0}
+.chk input{width:17px;height:17px;margin:2px 0 0;flex:0 0 17px;accent-color:var(--primary)}
+.chk.on{border-color:var(--primary);background:var(--primary-l)}
+.chk.alert{grid-column:1/-1}
+.chk.alert.on{border-color:var(--danger);background:var(--danger-l)}
+.chk .t{font-weight:600}
+.chk .d{display:block;font-size:11px;color:var(--ink3);font-weight:400;margin-top:1px}
+.subcard{background:#FAFCFC;border:1px dashed var(--line);border-radius:var(--radius-s);padding:12px;margin-top:10px}
+
+/* ---------- 徽标 / 状态 ---------- */
+.pill{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:700;padding:2px 9px;border-radius:99px;white-space:nowrap}
+.p-ok{background:var(--ok-l);color:var(--ok)}
+.p-mid{background:var(--warn-l);color:var(--warn)}
+.p-bad{background:var(--danger-l);color:var(--danger)}
+.p-info{background:var(--info-l);color:var(--info)}
+.p-gray{background:var(--line2);color:var(--ink2)}
+
+/* ---------- 今日待处理 ---------- */
+.today-card{border-left:4px solid var(--primary)}
+.today-card.hasover{border-left-color:var(--danger)}
+.todo{display:flex;align-items:center;gap:12px;padding:12px;border:1px solid var(--line);border-radius:var(--radius-s);background:#FCFDFD;margin-bottom:9px}
+.todo:last-child{margin-bottom:0}
+.todo.over{background:var(--danger-l);border-color:#F3D6D6}
+.todo.soon{background:var(--warn-l);border-color:#F2E2C6}
+.todo .who{flex:1;min-width:0}
+.todo .nm{font-weight:650;font-size:13.5px}
+.todo .meta{font-size:11.5px;color:var(--ink2);margin-top:2px}
+.todo .acts{display:flex;gap:7px;flex-wrap:wrap}
+.empty{text-align:center;color:var(--ink3);font-size:13px;padding:22px 10px}
+
+/* ---------- 表格 ---------- */
+.tbl-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--radius-s)}
+table.tbl{width:100%;border-collapse:collapse;font-size:13px;min-width:560px}
+table.tbl th{background:#F7FAFA;text-align:left;font-size:11.5px;color:var(--ink2);font-weight:700;padding:9px 11px;border-bottom:1px solid var(--line);white-space:nowrap}
+table.tbl td{padding:9px 11px;border-bottom:1px solid var(--line2);vertical-align:top}
+table.tbl tr:last-child td{border-bottom:0}
+table.tbl td.num{font-variant-numeric:tabular-nums;white-space:nowrap}
+table.tbl .src{font-size:11px;color:var(--ink3)}
+
+/* ---------- 报告 ---------- */
+.report{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:22px;box-shadow:var(--shadow)}
+.report h2{margin:0 0 4px;font-size:19px}
+.report .meta{font-size:12px;color:var(--ink3);margin-bottom:16px}
+.report h4{margin:20px 0 8px;font-size:14.5px;padding-left:10px;border-left:3px solid var(--primary);line-height:1.2}
+.report h5{margin:14px 0 6px;font-size:13.5px;color:var(--primary-d)}
+.duo{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:8px 0}
+.duo .pane{border-radius:var(--radius-s);padding:12px 14px;font-size:13px;line-height:1.75}
+.duo .pane .lb{font-size:11px;font-weight:700;letter-spacing:.4px;margin-bottom:6px;display:flex;align-items:center;gap:5px}
+.duo .pro{background:#F6FAFA;border:1px solid var(--line)}
+.duo .pro .lb{color:var(--primary-d)}
+.duo .lay{background:#FFFBF3;border:1px solid #F3E7D3}
+.duo .lay .lb{color:var(--warn)}
+.duo ul{margin:0;padding-left:17px}
+.duo li{margin:3px 0}
+.alertbox{border-radius:var(--radius-s);padding:13px 15px;font-size:13.5px;line-height:1.7;margin:10px 0}
+.alertbox.red{background:var(--danger-l);border:1px solid #F3D6D6;color:#8F2B2B}
+.alertbox.warn{background:var(--warn-l);border:1px solid #F2E2C6;color:#7A5210}
+.alertbox.info{background:var(--info-l);border:1px solid #D6E6F5;color:#1F5580}
+.alertbox b{font-weight:700}
+.training{border:1px solid var(--line);border-radius:var(--radius-s);padding:14px;margin-bottom:11px;background:#FCFDFD}
+.training .th{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+.training .th .nm{font-weight:680;font-size:13.5px}
+.training dl{margin:0;font-size:12.5px;line-height:1.7}
+.training dt{font-weight:700;color:var(--primary-d);margin-top:7px;font-size:12px}
+.training dd{margin:2px 0 0;color:var(--ink)}
+.training dd ol{margin:0;padding-left:18px}
+.disc{font-size:11.5px;color:var(--ink2);background:#F7FAFA;border:1px solid var(--line);border-radius:var(--radius-s);padding:12px 14px;line-height:1.7}
+
+/* ---------- 档案列表 ---------- */
+.arch-item{display:flex;align-items:center;gap:12px;padding:13px;border:1px solid var(--line);border-radius:var(--radius-s);background:#FCFDFD;margin-bottom:9px}
+.arch-item:last-child{margin-bottom:0}
+.arch-item .ic{width:38px;height:38px;border-radius:10px;background:var(--primary-l);color:var(--primary-d);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex:0 0 38px}
+.arch-item .who{flex:1;min-width:0}
+.arch-item .nm{font-weight:650;font-size:13.5px;display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.arch-item .meta{font-size:11.5px;color:var(--ink2);margin-top:2px}
+.arch-item .acts{display:flex;gap:6px;flex-wrap:wrap}
+.toolbar{display:flex;gap:9px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
+.toolbar input[type=search],.toolbar input[type=text]{flex:1;min-width:160px;min-height:38px;padding:8px 12px;border:1px solid var(--line);border-radius:var(--radius-s);font-size:16px;background:#FCFDFD;outline:none}
+.toolbar select{min-height:38px;padding:8px 10px;border:1px solid var(--line);border-radius:var(--radius-s);background:#FCFDFD;font-size:14px}
+.stat-row{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:14px}
+.stat{background:#FCFDFD;border:1px solid var(--line);border-radius:var(--radius-s);padding:12px 14px}
+.stat .v{font-size:22px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.2}
+.stat .k{font-size:11.5px;color:var(--ink2);margin-top:2px}
+.stat.red .v{color:var(--danger)}
+.stat.amber .v{color:var(--warn)}
+.stat.teal .v{color:var(--primary-d)}
+
+/* ---------- 移动端底部导航 ---------- */
+.tabbar{
+  display:none;position:fixed;left:0;right:0;bottom:0;z-index:40;background:rgba(255,255,255,.97);
+  backdrop-filter:blur(10px);border-top:1px solid var(--line);
+  padding:6px 4px calc(6px + env(safe-area-inset-bottom));
+}
+.tabbar .inner{display:flex}
+.tabbar button{
+  flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;border:0;background:transparent;
+  color:var(--ink3);font-size:10.5px;padding:6px 2px;cursor:pointer;position:relative;min-height:48px;
+}
+.tabbar button.on{color:var(--primary)}
+.tabbar button.on svg{stroke:var(--primary)}
+.tabbar .badge{position:absolute;top:2px;right:calc(50% - 18px);background:var(--danger);color:#fff;font-size:9.5px;font-weight:700;border-radius:99px;padding:0 5px;line-height:14px}
+
+/* ---------- Toast / Modal ---------- */
+#toast{position:fixed;left:50%;bottom:calc(84px + env(safe-area-inset-bottom));transform:translateX(-50%) translateY(14px);
+  background:rgba(22,40,44,.94);color:#fff;font-size:13px;padding:10px 18px;border-radius:99px;z-index:90;
+  opacity:0;pointer-events:none;transition:.22s;max-width:86vw;text-align:center}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+#modal{position:fixed;inset:0;background:rgba(14,30,34,.45);z-index:80;display:none;align-items:center;justify-content:center;padding:20px}
+#modal.show{display:flex}
+#modal .box{background:#fff;border-radius:var(--radius);padding:22px;max-width:400px;width:100%;box-shadow:0 20px 50px rgba(10,30,34,.25)}
+#modal h3{margin:0 0 8px;font-size:16px}
+#modal p{margin:0 0 18px;font-size:13.5px;color:var(--ink2);line-height:1.7}
+#modal .row{display:flex;gap:10px;justify-content:flex-end}
+
+/* ---------- 滚轮选择器（类 iOS 闹钟） ---------- */
+.field input.pickable{cursor:pointer;background:#fff;color:var(--ink);font-variant-numeric:tabular-nums}
+.field input.pickable::placeholder{color:var(--ink3)}
+.unit.pickwrap > span:not(.cv){right:31px}
+.pickwrap .cv{position:absolute;right:14px;top:50%;margin-top:-5px;width:7px;height:7px;
+  border-right:1.7px solid #9CAFB4;border-bottom:1.7px solid #9CAFB4;transform:rotate(45deg);pointer-events:none}
+.picker{position:fixed;inset:0;z-index:95;display:none;align-items:flex-end;justify-content:center;background:rgba(14,30,34,.42)}
+.picker.show{display:flex}
+.pk-box{width:100%;max-width:560px;background:#fff;border-radius:18px 18px 0 0;padding:12px 14px calc(14px + env(safe-area-inset-bottom));
+  animation:pkUp .22s cubic-bezier(.22,.9,.3,1)}
+@keyframes pkUp{from{transform:translateY(24px);opacity:.5}to{transform:none;opacity:1}}
+.pk-head{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.pk-head .t{font-weight:680;font-size:14.5px;flex:1;min-width:0}
+.pk-head .u{font-size:11.5px;color:var(--ink3);font-weight:600}
+.pk-cols{display:flex;gap:8px}
+.pk-col{flex:1;position:relative;height:224px;overflow:hidden;border-radius:12px;background:#F6FAFA;border:1px solid var(--line)}
+.pk-col .lb{position:absolute;top:6px;left:0;right:0;text-align:center;font-size:11px;color:var(--ink3);z-index:2;pointer-events:none}
+.pk-band{position:absolute;left:6px;right:6px;top:90px;height:44px;border-radius:10px;background:#fff;
+  box-shadow:0 1px 3px rgba(18,45,50,.09);pointer-events:none;z-index:1}
+.pk-list{height:224px;overflow-y:auto;scroll-snap-type:y mandatory;padding:90px 0;-webkit-overflow-scrolling:touch;scrollbar-width:none;position:relative;z-index:2}
+.pk-list::-webkit-scrollbar{display:none;width:0}
+.pk-item{height:44px;line-height:44px;text-align:center;font-size:16px;color:#A3B3B8;scroll-snap-align:center;
+  cursor:pointer;transition:color .12s,font-size .12s;font-variant-numeric:tabular-nums}
+.pk-item.on{color:var(--ink);font-weight:700;font-size:17.5px}
+body.pk-open{overflow:hidden}
+@media (min-width:769px){
+  .picker{align-items:center}
+  .pk-box{border-radius:18px;max-width:460px;box-shadow:0 24px 60px rgba(10,30,34,.28)}
+}
+
+/* ---------- 响应式 ---------- */
+@media (max-width:900px){
+  .g4{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .stat-row{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media (max-width:768px){
+  .sidebar{display:none}
+  .tabbar{display:block}
+
+  /* ---- 顶栏：标题 + 主按钮同排，不再换行占两行 ---- */
+  .topbar{padding:10px 12px 9px;gap:8px;flex-wrap:nowrap}
+  .topbar>div:first-child{flex:1;min-width:0}
+  .topbar h2{font-size:17px;line-height:1.25}
+  .topbar .desc{font-size:11.5px;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .topbar .spacer{display:none}
+  .topbar .btn{flex:0 0 auto;padding:0 12px;min-height:44px;font-size:13px}
+  .topbar .btn svg{width:14px;height:14px}
+
+  .content{padding:12px 12px calc(92px + env(safe-area-inset-bottom));gap:12px}
+
+  /* ---- 卡片更紧凑，减少无谓留白 ---- */
+  .card{padding:13px;border-radius:12px}
+  .card-h{margin-bottom:10px;gap:8px}
+  .card-h h3{font-size:14.5px}
+  .card-h .tag{font-size:11px}
+  .sec-title{margin:14px 0 8px;font-size:12px}
+
+  /* ---- 统计条：4 格一行，一屏看全 ---- */
+  .stat-row{grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;margin-bottom:12px}
+  .stat{padding:9px 4px;text-align:center;border-radius:9px}
+  .stat .v{font-size:19px}
+  .stat .k{font-size:10px;line-height:1.3;margin-top:1px}
+
+  /* ---- 表单：保持两列（密度），控件加高到 46px 且字号 16px 防 iOS 聚焦缩放 ---- */
+  .g2,.g3,.g4{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .field label{font-size:12px}
+  .field .hint{font-size:10.5px}
+  .field input,.field select,.field textarea{min-height:46px;padding:10px 11px;font-size:16px}
+  .field textarea{min-height:78px}
+  .unit span{font-size:11.5px;right:10px}
+  .unit input{padding-right:40px}
+  .checks{grid-template-columns:1fr;gap:7px}
+  .chk{min-height:44px;align-items:center;padding:10px 11px;font-size:13px;border-radius:10px}
+  .chk input{width:20px;height:20px;flex:0 0 20px;margin:0}
+  .subcard{padding:11px}
+
+  /* ---- 待办卡：姓名占一行 + 按钮按内容宽度自适应（一行放得下就一行，放不下自动换行，绝不裁字） ---- */
+  .todo{flex-wrap:wrap;padding:11px;gap:9px}
+  .todo .who{flex:1 1 100%}
+  .todo .nm{font-size:14px}
+  .todo .meta{font-size:11.5px;line-height:1.5}
+  .todo .acts{width:100%;gap:6px;flex-wrap:wrap}
+  .todo .acts .btn{flex:1 1 auto;padding:0 8px;font-size:12.5px}
+
+  /* ---- 档案条目 ---- */
+  .arch-item{flex-wrap:wrap;padding:11px;gap:9px}
+  .arch-item .ic{width:34px;height:34px;flex:0 0 34px;font-size:12.5px}
+  .arch-item .who{flex:1 1 100%}
+  .arch-item .nm{font-size:14px}
+  .arch-item .meta{font-size:11.5px;line-height:1.5}
+  .arch-item .acts{width:100%;gap:6px;flex-wrap:wrap}
+  .arch-item .acts .btn{flex:1 1 auto;padding:0 8px;font-size:12.5px}
+
+  /* ---- 按钮统一触控高度 ---- */
+  .btn{min-height:44px}
+  .btn.sm{min-height:44px;font-size:13px;padding:0 12px}
+
+  /* ---- 工具栏：搜索与筛选整行，操作按钮两列 ---- */
+  .toolbar{gap:8px;margin-bottom:12px}
+  .toolbar .spacer{display:none}
+  .toolbar input[type=search],.toolbar input[type=text]{flex:1 1 100%;min-width:0;min-height:44px;font-size:16px}
+  .toolbar select{flex:1 1 100%;min-height:44px;font-size:16px}
+  .toolbar .btn{flex:1 1 calc(50% - 4px)}
+  /* 同一视图内相邻卡片留出呼吸间距（手机上不再挤在一起） */
+  section>.card+*{margin-top:12px}
+
+  /* ---- 报告页 ---- */
+  .report{padding:15px;border-radius:12px}
+  .report h2{font-size:17px}
+  .report .meta{font-size:11.5px;margin-bottom:13px}
+  .report h4{font-size:13.5px;margin:16px 0 7px;padding-left:9px}
+  .report h5{font-size:13px;margin:12px 0 5px}
+  .duo{grid-template-columns:1fr;gap:9px}
+  .duo .pane{font-size:12.5px;line-height:1.72;padding:11px 12px}
+  .alertbox{font-size:12.5px;line-height:1.65;padding:11px 13px}
+  .training{padding:12px}
+  .training .th .nm{font-size:13px}
+  .training dl{font-size:12px}
+  .training dt{font-size:11.5px}
+  .disc{font-size:11.5px;padding:11px 12px}
+
+  /* ---- 表格：允许横向滚动，缩放一点减少滑屏 ---- */
+  .tbl-wrap{-webkit-overflow-scrolling:touch}
+  table.tbl{min-width:460px;font-size:12.5px}
+  table.tbl th,table.tbl td{padding:8px 9px}
+
+  #toast{bottom:calc(92px + env(safe-area-inset-bottom))}
+}
+/* ---- 小屏（≤380px）再收紧一档 ---- */
+@media (max-width:380px){
+  .topbar{padding:9px 10px 8px}
+  .topbar h2{font-size:16px}
+  .content{padding:10px 10px calc(92px + env(safe-area-inset-bottom))}
+  .card{padding:11px}
+  .stat{gap:5px}
+  .stat .v{font-size:17.5px}
+  .stat .k{font-size:9.5px}
+  .todo .acts .btn,.arch-item .acts .btn{font-size:12px}
+}
+@media print{
+  .sidebar,.tabbar,.topbar,.toolbar,.no-print{display:none !important}
+  .content{padding:0;max-width:none}
+  .duo{grid-template-columns:1fr 1fr}
+  .card,.report{box-shadow:none;border-color:#ddd}
+}
+</style>
+</head>
+<body>
+
+<div class="app">
+  <!-- ================= 左侧边栏 ================= -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="logo">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.6">
+          <path d="M12 6.5c4.6 0 8.3 3.2 9.6 5.5-1.3 2.3-5 5.5-9.6 5.5S3.7 14.3 2.4 12C3.7 9.7 7.4 6.5 12 6.5z" stroke-linejoin="round"/>
+          <circle cx="12" cy="12" r="2.4" fill="#fff" stroke="none"/>
+        </svg>
+      </div>
+      <div>
+        <h1>视功能分析台</h1>
+        <p>Optometry Analysis</p>
+      </div>
+    </div>
+
+    <div class="userbox">
+      <div class="av">王</div>
+      <div>
+        <div class="nm">王景辉</div>
+        <div class="sub">视光师 · 精功眼镜门店</div>
+      </div>
+    </div>
+
+    <nav class="nav" id="nav">
+      <button data-view="today" class="on">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+          <rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M8 3.5v3M16 3.5v3M3.5 10h17"/><path d="M8.5 14.5l2 2 4-4.5"/>
+        </svg>
+        <span>今天要处理</span><span class="badge hidden" id="navBadge">0</span>
+      </button>
+      <button data-view="entry">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+          <path d="M15.5 3.8H18a1.8 1.8 0 011.8 1.8v13.6A1.8 1.8 0 0118 21H6a1.8 1.8 0 01-1.8-1.8V5.6A1.8 1.8 0 016 3.8h2.5"/><rect x="9" y="2.5" width="6" height="3.4" rx="1.2"/>
+        </svg>
+        <span>检查录入</span>
+      </button>
+      <button data-view="report">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+          <path d="M5 3.6h9.5L19.5 8.6V20a1 1 0 01-1 1H5a1 1 0 01-1-1V4.6a1 1 0 011-1z"/><path d="M14.2 3.8v5h5"/><path d="M8 13h8M8 17h5.5"/>
+        </svg>
+        <span>分析报告</span>
+      </button>
+      <button data-view="archive">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+          <path d="M3.5 8.5h17M5.5 8.5V19a1.5 1.5 0 001.5 1.5h10a1.5 1.5 0 001.5-1.5V8.5"/><rect x="3" y="4.5" width="18" height="4" rx="1.3"/>
+        </svg>
+        <span>顾客档案</span>
+      </button>
+    </nav>
+
+    <div class="sidefoot">
+      <div class="sync" id="syncState"><span class="dot"></span><span id="syncText">本地存储 · 数据仅在本机</span></div>
+      <div class="row">
+        <button class="btn sm" id="btnInstall">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M12 3.5v11M7.5 10.5L12 15l4.5-4.5"/><path d="M4.5 17.5v1.8a1.7 1.7 0 001.7 1.7h11.6a1.7 1.7 0 001.7-1.7v-1.8"/></svg>
+          安装到桌面
+        </button>
+      </div>
+      <div class="row">
+        <button class="btn sm" id="btnExport">导出备份</button>
+        <button class="btn sm" id="btnImport">导入恢复</button>
+      </div>
+      <input type="file" id="fileImport" accept=".json,application/json" class="hidden">
+    </div>
+  </aside>
+
+  <!-- ================= 主区域 ================= -->
+  <div class="main">
+    <header class="topbar">
+      <div>
+        <h2 id="viewTitle">今天要处理</h2>
+        <div class="desc" id="viewDesc">复查到期与逾期的顾客，一条条处理掉</div>
+      </div>
+      <div class="spacer"></div>
+      <button class="btn pri" id="btnNewTop">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        新建检查
+      </button>
+    </header>
+
+    <div class="content">
+
+      <!-- ========== 视图 1：今天要处理 ========== -->
+      <section id="view-today">
+        <div class="stat-row">
+          <div class="stat red"><div class="v" id="stOverdue">0</div><div class="k">逾期未复查</div></div>
+          <div class="stat amber"><div class="v" id="stToday">0</div><div class="k">今天到期</div></div>
+          <div class="stat teal"><div class="v" id="stWeek">0</div><div class="k">7 天内待复查</div></div>
+          <div class="stat"><div class="v" id="stTotal">0</div><div class="k">档案总数</div></div>
+        </div>
+
+        <div class="card today-card" id="todayCard">
+          <div class="card-h">
+            <div class="ico">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#0A5C70" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>
+            </div>
+            <h3>今天要处理</h3>
+            <span class="tag" id="todayTag"></span>
+          </div>
+          <div id="todayList"></div>
+        </div>
+
+        <div class="card flat">
+          <div class="sec-title">本周复查排期</div>
+          <div id="weekList"></div>
+        </div>
+      </section>
+
+      <!-- ========== 视图 2：检查录入 ========== -->
+      <section id="view-entry" class="hidden">
+        <div class="card flat" style="padding:11px 14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <span class="pill p-gray" id="entryModeTag">新建检查</span>
+          <span style="font-size:12px;color:var(--ink3)" id="entryModeHint">提交后将新增一条档案</span>
+          <button type="button" class="btn sm" id="btnForceNew" style="margin-left:auto">清空表单，新建一条</button>
+        </div>
+        <form id="entryForm" autocomplete="off">
+          <div class="card">
+            <div class="card-h">
+              <div class="ico">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#0A5C70" stroke-width="1.9" stroke-linecap="round"><path d="M4 20v-1a5 5 0 015-5h6a5 5 0 015 5v1"/><circle cx="12" cy="7.5" r="3.8"/></svg>
+              </div>
+              <h3>一、基本信息与问诊</h3>
+              <span class="tag">带 * 为必填</span>
+            </div>
+
+            <div class="grid g4">
+              <div class="field"><label>姓名 / 编号 *</label><input name="name" placeholder="如：小明 / A0231"></div>
+              <div class="field"><label>年龄（周岁）*</label><div class="unit"><input name="age" type="number" min="1" max="99" inputmode="numeric" placeholder="12"><span>岁</span></div></div>
+              <div class="field"><label>性别</label><select name="gender"><option>男</option><option>女</option></select></div>
+              <div class="field"><label>当前戴镜情况</label><select name="wear">
+                <option value="none">不戴镜</option><option value="frame" selected>框架眼镜</option>
+                <option value="contact">隐形眼镜</option><option value="orthoK">角膜塑形镜</option>
+              </select></div>
+            </div>
+
+            <div class="sec-title">屈光处方与视力</div>
+            <div class="grid g4">
+              <div class="field"><label>OD 球镜 <span class="hint">D</span></label><input name="odSph" type="number" step="0.25" inputmode="decimal" placeholder="-1.50"></div>
+              <div class="field"><label>OD 柱镜 <span class="hint">D</span></label><input name="odCyl" type="number" step="0.25" inputmode="decimal" placeholder="0"></div>
+              <div class="field"><label>OD 轴位 <span class="hint">°</span></label><input name="odAx" type="number" min="0" max="180" inputmode="numeric" placeholder="180"></div>
+              <div class="field"><label>OD 裸眼视力</label><input name="odUcva" placeholder="0.2 / 4.6"></div>
+              <div class="field"><label>OS 球镜 <span class="hint">D</span></label><input name="osSph" type="number" step="0.25" inputmode="decimal" placeholder="-1.25"></div>
+              <div class="field"><label>OS 柱镜 <span class="hint">D</span></label><input name="osCyl" type="number" step="0.25" inputmode="decimal" placeholder="0"></div>
+              <div class="field"><label>OS 轴位 <span class="hint">°</span></label><input name="osAx" type="number" min="0" max="180" inputmode="numeric" placeholder="180"></div>
+              <div class="field"><label>OS 裸眼视力</label><input name="osUcva" placeholder="0.3 / 4.7"></div>
+              <div class="field"><label>OD 最佳矫正视力</label><input name="odBcva" placeholder="1.0 / 5.0"></div>
+              <div class="field"><label>OS 最佳矫正视力</label><input name="osBcva" placeholder="1.0 / 5.0"></div>
+              <div class="field"><label>是否睫状肌麻痹（散瞳）</label><select name="cyclo">
+                <option value="na">未查</option><option value="no">否</option><option value="yes">是</option></select></div>
+              <div class="field"><label>是否充分雾视放松</label><select name="fogging">
+                <option value="na">未查</option><option value="no">否</option><option value="yes">是</option></select></div>
+            </div>
+
+            <div class="sec-title">主诉症状（逐项询问：有没有 / 多久了 / 什么情况下出现）</div>
+            <div class="checks" id="symChecks">
+              <label class="chk"><input type="checkbox" name="sym_near"><span><span class="t">看近处眼胀、眼酸</span></span></label>
+              <label class="chk"><input type="checkbox" name="sym_far"><span><span class="t">看近后看远模糊</span></span></label>
+              <label class="chk"><input type="checkbox" name="sym_head"><span><span class="t">头痛（额头 / 眼眶周围）</span></span></label>
+              <label class="chk"><input type="checkbox" name="sym_skip"><span><span class="t">阅读跳行、串行、漏字</span></span></label>
+              <label class="chk"><input type="checkbox" name="sym_dipl"><span><span class="t">重影（看一个变两个）</span></span></label>
+              <label class="chk"><input type="checkbox" name="sym_sleepy"><span><span class="t">看书易犯困、注意力不集中</span></span></label>
+            </div>
+            <div class="grid g3" style="margin-top:12px">
+              <div class="field"><label>症状持续多久</label><input name="symDuration" placeholder="如：3 个月"></div>
+              <div class="field"><label>每天最明显的时段</label><input name="symWorst" placeholder="如：下午 / 晚上写作业时"></div>
+              <div class="field"><label>每天近距离用眼时长</label><div class="unit"><input name="nearHours" type="number" step="0.5" min="0" max="24" inputmode="decimal" placeholder="6"><span>小时</span></div></div>
+            </div>
+            <div class="grid g3" style="margin-top:12px">
+              <div class="field"><label>是否长时间连续用眼不休息</label><select name="continuous">
+                <option value="no">否</option><option value="yes">是</option></select></div>
+              <div class="field"><label>既往史：斜视 / 弱视</label><select name="history">
+                <option value="none">无</option><option value="strab">斜视</option><option value="ambly">弱视</option><option value="both">斜视 + 弱视</option></select></div>
+              <div class="field"><label>眼部手术史 / 眼外伤史</label><select name="surgery">
+                <option value="no">无</option><option value="yes">有</option></select></div>
+            </div>
+            <div class="grid g3" style="margin-top:12px">
+              <div class="field"><label>是否正在进行视觉训练</label><select name="training">
+                <option value="no">否</option><option value="yes">是</option></select></div>
+              <div class="field"><label>瞳孔距离 PD</label><div class="unit"><input name="pd" type="number" step="0.5" inputmode="decimal" placeholder="60"><span>mm</span></div></div>
+              <div class="field"><label>下次复查日期</label><input name="nextReview" type="date"></div>
+            </div>
+            <div class="checks" style="margin-top:12px">
+              <label class="chk"><input type="checkbox" name="compensate"><span><span class="t">存在代偿行为</span><span class="d">闭一只眼阅读 / 频繁揉眼 / 歪头等</span></span></label>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-h">
+              <div class="ico">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#0A5C70" stroke-width="1.9" stroke-linecap="round"><path d="M12 3.5l2.6 5.6 6.1.8-4.4 4.3 1 6.1-5.3-3-5.3 3 1-6.1L3.3 9.9l6.1-.8z"/></svg>
+              </div>
+              <h3>二、红旗征筛查（最高优先级）</h3>
+              <span class="tag">命中任一项将终止分析并建议转诊</span>
+            </div>
+            <div class="checks" id="rfChecks">
+              <label class="chk alert"><input type="checkbox" name="rf_bcva" data-lb="最佳矫正视力低于同龄正常水平"><span><span class="t">最佳矫正视力低于同龄正常水平</span></span></label>
+              <label class="chk alert"><input type="checkbox" name="rf_drop" data-lb="突发性视力下降（数小时/数天内进行性下降）"><span><span class="t">突发性视力下降</span><span class="d">数小时 / 数天内进行性下降</span></span></label>
+              <label class="chk alert"><input type="checkbox" name="rf_uni" data-lb="单眼复视（遮盖一眼后复视不消失）"><span><span class="t">单眼复视</span><span class="d">遮盖一眼后复视不消失</span></span></label>
+              <label class="chk alert"><input type="checkbox" name="rf_newdipl" data-lb="突发性或新发的复视"><span><span class="t">突发性或新发的复视</span></span></label>
+              <label class="chk alert"><input type="checkbox" name="rf_motil" data-lb="眼球运动明显受限"><span><span class="t">眼球运动明显受限</span></span></label>
+              <label class="chk alert"><input type="checkbox" name="rf_pupil" data-lb="瞳孔异常（不等大、对光反应异常）"><span><span class="t">瞳孔异常</span><span class="d">不等大 / 对光反应异常</span></span></label>
+              <label class="chk alert"><input type="checkbox" name="rf_pain" data-lb="剧烈眼痛伴畏光、恶心呕吐"><span><span class="t">剧烈眼痛伴畏光、恶心呕吐</span></span></label>
+              <label class="chk alert"><input type="checkbox" name="rf_field" data-lb="视野缺损主诉"><span><span class="t">视野缺损主诉</span></span></label>
+              <label class="chk alert"><input type="checkbox" name="rf_propt" data-lb="眼球突出"><span><span class="t">眼球突出</span></span></label>
+              <label class="chk alert"><input type="checkbox" name="rf_trauma" data-lb="近期眼外伤或眼内手术史"><span><span class="t">近期眼外伤或眼内手术史</span></span></label>
+              <label class="chk alert"><input type="checkbox" name="rf_young" data-lb="年龄 &lt; 6 岁且无法配合检查"><span><span class="t">年龄 &lt; 6 岁且无法配合检查</span></span></label>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-h">
+              <div class="ico">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#0A5C70" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 12l3.5-2.5"/><circle cx="12" cy="12" r="1.4" fill="#0A5C70" stroke="none"/></svg>
+              </div>
+              <h3>三、调节功能</h3>
+              <span class="tag">未做的项目请留空，不要估算</span>
+            </div>
+            <div class="grid g4">
+              <div class="field"><label>AMP 测量方法</label><select name="ampMethod">
+                <option value="pushup">推进法（push-up）</option><option value="minus">负镜法（minus lens）</option><option value="na">未查</option></select></div>
+              <div class="field"><label>AMP OD</label><div class="unit"><input name="ampOd" type="number" step="0.25" inputmode="decimal" placeholder="5.0"><span>D</span></div></div>
+              <div class="field"><label>AMP OS</label><div class="unit"><input name="ampOs" type="number" step="0.25" inputmode="decimal" placeholder="5.5"><span>D</span></div></div>
+              <div class="field"><label>AMP 双眼</label><div class="unit"><input name="ampOu" type="number" step="0.25" inputmode="decimal" placeholder="5.0"><span>D</span></div></div>
+              <div class="field"><label>NRA 负相对调节</label><div class="unit"><input name="nra" type="number" step="0.25" inputmode="decimal" placeholder="+2.25"><span>D</span></div></div>
+              <div class="field"><label>PRA 正相对调节 <span class="hint">填负值，如 −2.50</span></label><div class="unit"><input name="pra" type="number" step="0.25" inputmode="decimal" placeholder="-1.25"><span>D</span></div></div>
+              <div class="field"><label>BCC / MEM 调节反应</label><div class="unit"><input name="bcc" type="number" step="0.25" inputmode="decimal" placeholder="+1.00"><span>D</span></div></div>
+              <div class="field"><label>调节灵敏度 OD</label><div class="unit"><input name="facOd" type="number" step="0.5" inputmode="decimal" placeholder="6"><span>cpm</span></div></div>
+              <div class="field"><label>调节灵敏度 OS</label><div class="unit"><input name="facOs" type="number" step="0.5" inputmode="decimal" placeholder="7"><span>cpm</span></div></div>
+              <div class="field"><label>调节灵敏度 双眼</label><div class="unit"><input name="facOu" type="number" step="0.5" inputmode="decimal" placeholder="5"><span>cpm</span></div></div>
+            </div>
+            <div class="alertbox info" style="margin-top:12px;font-size:12.5px">调节灵敏度为 ±2.00D 翻转拍结果。参考：13~30 岁单眼 ≥11cpm、双眼 ≥8cpm；8~12 岁单眼 ≥7cpm、双眼 ≥5cpm。</div>
+          </div>
+
+          <div class="card">
+            <div class="card-h">
+              <div class="ico">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#0A5C70" stroke-width="1.9" stroke-linecap="round"><path d="M2.5 12s3-4.5 5.5-4.5S13.5 12 13.5 12s3 4.5 5.5 4.5S21.5 12 21.5 12"/><path d="M12 4v3M12 17v3"/></svg>
+              </div>
+              <h3>四、聚散功能</h3>
+            </div>
+            <div class="alertbox info" style="margin-bottom:12px;font-size:12.5px">
+              隐斜按<b>「外隐斜为负、内隐斜为正」</b>记录：数值填正数，方向选「外隐斜 / 内隐斜」。
+              如 8Δ 外隐斜 → 数值 8 + 方向外隐斜，系统按 <b>−8Δ</b> 参与计算。
+            </div>
+            <div class="grid g4">
+              <div class="field"><label>远距隐斜</label><input name="distPhoriaVal" type="number" step="0.5" inputmode="decimal" placeholder="2"></div>
+              <div class="field"><label>远距隐斜方向</label><select name="distPhoriaDir">
+                <option value="exo">外隐斜（负值）</option><option value="eso">内隐斜（正值）</option><option value="ortho">正位</option></select></div>
+              <div class="field"><label>近距隐斜</label><input name="nearPhoriaVal" type="number" step="0.5" inputmode="decimal" placeholder="8"></div>
+              <div class="field"><label>近距隐斜方向</label><select name="nearPhoriaDir">
+                <option value="exo">外隐斜（负值）</option><option value="eso">内隐斜（正值）</option><option value="ortho">正位</option></select></div>
+              <div class="field"><label>AC/A 比率</label><div class="unit"><input name="aca" type="number" step="0.1" inputmode="decimal" placeholder="4.5"><span>Δ/D</span></div></div>
+              <div class="field"><label>AC/A 测量方法</label><select name="acaMethod">
+                <option value="calc">计算法</option><option value="grad">梯度法</option><option value="na">未查</option></select></div>
+              <div class="field"><label>NPC 集合近点（破裂点）</label><div class="unit"><input name="npc" type="number" step="0.5" inputmode="decimal" placeholder="10"><span>cm</span></div></div>
+              <div class="field"><label>聚散灵敏度（3ΔBI/12ΔBO）</label><div class="unit"><input name="vergFac" type="number" step="0.5" inputmode="decimal" placeholder="10"><span>cpm</span></div></div>
+            </div>
+
+            <div class="sec-title">融合范围（模糊 / 破裂 / 恢复，单位 Δ）</div>
+            <div class="grid g4">
+              <div class="field"><label>远距 BI</label><input name="distBI" placeholder="X / 7 / 4"></div>
+              <div class="field"><label>远距 BO</label><input name="distBO" placeholder="9 / 19 / 10"></div>
+              <div class="field"><label>近距 BI</label><input name="nearBI" placeholder="13 / 21 / 13"></div>
+              <div class="field"><label>近距 BO</label><input name="nearBO" placeholder="12 / 16 / 8"></div>
+            </div>
+            <div class="alertbox info" style="margin-top:12px;font-size:12.5px">点击输入框后用滚轮选择「模糊 / 破裂 / 恢复」三段数值，单位 Δ。远距无模糊点时首段选 X，如 <b>X/7/4</b>。</div>
+          </div>
+
+          <div class="card">
+            <div class="card-h">
+              <div class="ico">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#0A5C70" stroke-width="1.9" stroke-linecap="round"><rect x="3" y="8" width="18" height="8" rx="3"/><circle cx="8" cy="12" r="1.2" fill="#0A5C70" stroke="none"/><circle cx="12" cy="12" r="1.2" fill="#0A5C70" stroke="none"/><circle cx="16" cy="12" r="1.2" fill="#0A5C70" stroke="none"/></svg>
+              </div>
+              <h3>五、三级视功能与眼球运动</h3>
+            </div>
+            <div class="grid g4">
+              <div class="field"><label>Worth 4 灯（远距）</label><select name="worthDist">
+                <option value="4">4 灯（正常）</option><option value="2">2 灯（一眼抑制）</option><option value="3">3 灯（一眼抑制）</option><option value="5">5 灯（复视 / 异常视网膜对应）</option><option value="na">未查</option></select></div>
+              <div class="field"><label>Worth 4 灯（近距）</label><select name="worthNear">
+                <option value="4">4 灯（正常）</option><option value="2">2 灯（一眼抑制）</option><option value="3">3 灯（一眼抑制）</option><option value="5">5 灯（复视 / 异常视网膜对应）</option><option value="na">未查</option></select></div>
+              <div class="field"><label>立体视</label><div class="unit"><input name="stereo" type="number" step="1" inputmode="numeric" placeholder="80"><span>弧秒</span></div></div>
+              <div class="field"><label>不等像</label><div class="unit"><input name="aniseikonia" type="number" step="0.25" inputmode="decimal" placeholder="0.5"><span>%</span></div></div>
+              <div class="field" style="grid-column:1/-1"><label>注视稳定性 / 扫视 / 追随</label><input name="motility" placeholder="如：注视稳定，扫视略欠精准；未查"></div>
+              <div class="field" style="grid-column:1/-1"><label>备注</label><textarea name="note" placeholder="其他需要记录的信息（选填）"></textarea></div>
+            </div>
+          </div>
+
+          <div class="card flat">
+            <div style="display:flex;gap:10px;flex-wrap:wrap">
+              <button type="submit" class="btn pri" style="flex:1;min-width:180px">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.1" stroke-linecap="round"><path d="M4.5 12.5l5 5 10-11"/></svg>
+                开始自动分析并生成报告
+              </button>
+              <button type="button" class="btn" id="btnFillDemo">填入演示数据</button>
+              <button type="button" class="btn dan" id="btnResetForm">清空表单</button>
+            </div>
+            <div class="alertbox info" style="margin-top:14px;font-size:12.5px">
+              <b>最小可分析数据集</b>：缺少「AMP + PRA/NRA（或 BCC）+ 近距隐斜」中任意关键项时，系统不会下达对应维度的诊断结论，仅输出数据概览与复查建议。
+            </div>
+          </div>
+        </form>
+      </section>
+
+      <!-- ========== 视图 3：分析报告 ========== -->
+      <section id="view-report" class="hidden">
+        <div class="toolbar no-print">
+          <button class="btn sm" id="btnBackEdit">返回修改</button>
+          <button class="btn sm" id="btnCopyReport">复制报告文本</button>
+          <button class="btn sm" id="btnPrintReport">打印 / 存 PDF</button>
+          <div class="spacer" style="flex:1"></div>
+          <span class="pill p-gray" id="reportStamp">—</span>
+        </div>
+        <div id="reportBody"></div>
+      </section>
+
+      <!-- ========== 视图 4：顾客档案 ========== -->
+      <section id="view-archive" class="hidden">
+        <div class="card flat">
+          <div class="toolbar">
+            <input type="search" id="archSearch" placeholder="搜索姓名 / 主诉 / 诊断关键词">
+            <select id="archFilter">
+              <option value="all">全部档案</option>
+              <option value="overdue">逾期复查</option>
+              <option value="due">今天到期</option>
+              <option value="week">7 天内复查</option>
+              <option value="redo">命中红旗征 / 转诊</option>
+              <option value="major">中重度异常</option>
+            </select>
+            <button class="btn sm" id="btnExportJson">导出 JSON 备份</button>
+            <button class="btn sm" id="btnImportJson">导入恢复</button>
+            <button class="btn sm" id="btnClearSample">清空示例数据</button>
+            <button class="btn sm dan" id="btnClearAll">清空全部数据</button>
+          </div>
+          <div id="archNotice"></div>
+          <div id="archList"></div>
+        </div>
+      </section>
+
+    </div>
+  </div>
+</div>
+
+<!-- ================= 移动端底部导航 ================= -->
+<nav class="tabbar" id="tabbar">
+  <div class="inner">
+    <button data-view="today" class="on">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3.5" y="5" width="17" height="15" rx="2.5"/><path d="M8 3.5v3M16 3.5v3M3.5 10h17"/><path d="M8.5 14.5l2 2 4-4.5"/></svg>
+      <span>待处理</span><span class="badge hidden" id="tabBadge">0</span>
+    </button>
+    <button data-view="entry">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M15.5 3.8H18a1.8 1.8 0 011.8 1.8v13.6A1.8 1.8 0 0118 21H6a1.8 1.8 0 01-1.8-1.8V5.6A1.8 1.8 0 016 3.8h2.5"/><rect x="9" y="2.5" width="6" height="3.4" rx="1.2"/></svg>
+      <span>录入</span>
+    </button>
+    <button data-view="report">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M5 3.6h9.5L19.5 8.6V20a1 1 0 01-1 1H5a1 1 0 01-1-1V4.6a1 1 0 011-1z"/><path d="M14.2 3.8v5h5"/><path d="M8 13h8M8 17h5.5"/></svg>
+      <span>报告</span>
+    </button>
+    <button data-view="archive">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3.5 8.5h17M5.5 8.5V19a1.5 1.5 0 001.5 1.5h10a1.5 1.5 0 001.5-1.5V8.5"/><rect x="3" y="4.5" width="18" height="4" rx="1.3"/></svg>
+      <span>档案</span>
+    </button>
+  </div>
+</nav>
+
+<div id="picker" class="picker">
+  <div class="pk-box">
+    <div class="pk-head">
+      <span class="t" id="pkTitle">选择数值</span>
+      <span class="u" id="pkUnit"></span>
+      <button class="btn sm" id="pkClear">未查</button>
+      <button class="btn sm pri" id="pkOk">完成</button>
+    </div>
+    <div class="pk-cols" id="pkCols"></div>
+  </div>
+</div>
+
+<div id="toast"></div>
+<div id="modal"><div class="box">
+  <h3 id="modalTitle">确认</h3>
+  <p id="modalText"></p>
+  <div class="row"><button class="btn" id="modalCancel">取消</button><button class="btn dan" id="modalOk">确认</button></div>
+</div></div>
+
+<script>
+'use strict';
+/* ============================================================================
+   视功能自动分析工作台
+   架构分层（严格单向调用，禁止渲染函数互调）：
+     数据层 storage  →  计算层 analyzers  →  渲染层 render*  →  统一入口 refreshAll()
+   ============================================================================ */
+
+/* ============================== 0. 通用工具 ============================== */
+const LS_RECORDS = 'wb_vision_records_v1';
+const LS_META    = 'wb_vision_meta_v1';
+const APP_VERSION = '1.0.0';
+
+const state = {
+  view: 'today',
+  records: [],
+  currentId: null,
+  report: null,
+  archFilter: 'all',
+  archQuery: '',
+  installEvt: null
+};
+
+function $(sel, root){ return (root || document).querySelector(sel); }
+function $$(sel, root){ return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
+function esc(s){
+  return String(s === null || s === undefined ? '' : s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+function num(v){
+  if (v === null || v === undefined) return null;
+  const s = String(v).trim();
+  if (s === '' || s === '未查' || s === '-') return null;
+  const n = Number(s.replace(/[+＋]/g,'').replace(/[－−]/g,'-'));
+  return isNaN(n) ? null : n;
+}
+function fmtNum(v, digits){
+  if (v === null || v === undefined || v === '') return '未查';
+  const d = (digits === undefined) ? 2 : digits;
+  const n = Number(v);
+  if (isNaN(n)) return String(v);
+  const s = n.toFixed(d);
+  return s.replace(/\.?0+$/, '') || '0';
+}
+/* 带符号显示，屈光度默认保留 2 位小数（验光处方惯例：−2.50D、+1.00D） */
+function signed(v, digits){
+  if (v === null || v === undefined) return '未查';
+  const n = Number(v);
+  if (isNaN(n)) return String(v);
+  const d = (digits === undefined) ? 2 : digits;
+  return (n > 0 ? '+' : '') + n.toFixed(d);
+}
+function todayStr(){
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+function addDays(dateStr, days){
+  const d = dateStr ? new Date(dateStr + 'T00:00:00') : new Date();
+  d.setDate(d.getDate() + days);
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+function diffDays(dateStr){
+  if (!dateStr) return null;
+  const a = new Date(dateStr + 'T00:00:00');
+  const b = new Date(todayStr() + 'T00:00:00');
+  if (isNaN(a.getTime())) return null;
+  return Math.round((a - b) / 86400000);
+}
+function shortDate(s){ return s ? s.slice(5).replace('-','/') : '—'; }
+function uid(){ return 'r' + Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
+function toast(msg){
+  const t = $('#toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toast._t);
+  toast._t = setTimeout(function(){ t.classList.remove('show'); }, 2200);
+}
+function confirmBox(title, text, onOk){
+  $('#modalTitle').textContent = title;
+  $('#modalText').innerHTML = text;
+  const m = $('#modal');
+  m.classList.add('show');
+  const ok = $('#modalOk'), cancel = $('#modalCancel');
+  function close(){ m.classList.remove('show'); ok.removeEventListener('click', yes); cancel.removeEventListener('click', no); }
+  function yes(){ close(); onOk(); }
+  function no(){ close(); }
+  ok.addEventListener('click', yes);
+  cancel.addEventListener('click', no);
+}
+function se(sph, cyl){
+  if (sph === null && cyl === null) return null;
+  return (sph || 0) + (cyl || 0) / 2;
+}
+function rxText(r){
+  const parts = [];
+  if (r.odSph !== null || r.odCyl !== null) {
+    parts.push('OD ' + (r.odSph === null ? '—' : signed(r.odSph)) + (r.odCyl ? ' / ' + signed(r.odCyl) + '×' + (r.odAx || '—') : ''));
+  }
+  if (r.osSph !== null || r.osCyl !== null) {
+    parts.push('OS ' + (r.osSph === null ? '—' : signed(r.osSph)) + (r.osCyl ? ' / ' + signed(r.osCyl) + '×' + (r.osAx || '—') : ''));
+  }
+  return parts.length ? parts.join('　') : '未查';
+}
+
+/* ============================== 1. 正常参考值 ============================== */
+const NORM = {
+  nra:      { lo: 1.75, hi: 2.50, txt: '+1.75 ~ +2.50 D', src: '临床标准' },
+  pra:      { lo: 1.75, hi: 3.00, txt: '约 −1.75 ~ −3.00 D（记录为负值，绝对值越大越好）', src: '临床标准' },
+  bcc:      { lo: 0.25, hi: 0.75, txt: '+0.25 ~ +0.75 D（平均 +0.50 D）', src: '生理性调节滞后约 +0.50D' },
+  /* 符号约定：外隐斜为负、内隐斜为正（eso 记 +，exo 记 −） */
+  distExo:  { lo: -3.0, hi: 1.0,  txt: '1±2Δ 外隐斜（记作 −1±2Δ，范围 +1 ~ −3Δ，负为外隐斜）', src: 'Morgan 正常值' },
+  nearExo:  { lo: -6.0, hi: 0.0,  txt: '3±3Δ 外隐斜（记作 −3±3Δ，范围 0 ~ −6Δ，负为外隐斜）', src: 'Morgan 正常值' },
+  aca:      { lo: 3.0,  hi: 5.0,  txt: '3 ~ 5 Δ/D（均值约 4）', src: 'Morgan 正常值' },
+  distBI:   { blur: null, brk: 7,  rec: 4,  txt: 'X / 7±3 / 4±2', src: 'Morgan 正常值' },
+  distBO:   { blur: 9,    brk: 19, rec: 10, txt: '9±4 / 19±8 / 10±4', src: 'Morgan 正常值' },
+  nearBI:   { blur: 13,   brk: 21, rec: 13, txt: '13±4 / 21±4 / 13±5', src: 'Morgan 正常值' },
+  nearBO:   { blur: 17,   brk: 21, rec: 11, txt: '17±5 / 21±6 / 11±6（破裂点约 18 ~ 24Δ）', src: 'Morgan 正常值（修正）' },
+  vergFac:  { lo: 9,      txt: '≥ 9 cpm', src: '经验参考，非强循证（文献多在 12 ~ 15 cpm）' },
+  stereoAdult: { lo: 40, hi: 60, txt: '成人 ≤ 40 ~ 60 弧秒', src: '临床标准' },
+  stereoChild7: { hi: 60, txt: '7 岁以上儿童 ≤ 60 弧秒', src: '发育标准' },
+  stereoChild5: { hi: 200, txt: '5 岁儿童 < 200 弧秒（可接受）', src: '发育标准' },
+  stereoChild4: { hi: 200, txt: '4 岁儿童 < 200 弧秒（可接受）', src: '发育标准' },
+  stereoUse:    { hi: 200, txt: '实用立体视 ≤ 200 弧秒', src: '临床标准' },
+  npc:      { txt: '破裂点 < 6cm 正常；≥ 6cm（老视前）/ ≥ 10cm（老视）异常', src: 'CITT / 临床标准' }
+};
+
+/* 远视储备下限（仅适用于睫状肌麻痹后等效球镜） */
+const HYPEROPIA_RESERVE = [
+  { ageMin: 3, ageMax: 5,  lo: 2.05 },
+  { ageMin: 6, ageMax: 6,  lo: 1.72 },
+  { ageMin: 7, ageMax: 7,  lo: 1.48 },
+  { ageMin: 8, ageMax: 8,  lo: 1.19 },
+  { ageMin: 9, ageMax: 9,  lo: 1.11 },
+  { ageMin: 10, ageMax: 10, lo: 0.92 },
+  { ageMin: 11, ageMax: 11, lo: 0.83 },
+  { ageMin: 12, ageMax: 12, lo: 0.75 }
+];
+const RESERVE_SRC = 'WS/T 10039-2025《儿童青少年裸眼视力和屈光状态评价规范》及《近视防治指南（2024 年版）》';
+
+/* 年龄适配的调节参考值 */
+function ampExpected(age, method){
+  if (age === null) return { val: null, txt: '需先填写年龄', src: 'Hofstetter 最小调节幅度公式' };
+  const base = 15 - 0.25 * age;
+  if (method === 'minus') {
+    return { val: Math.round((base - 2) * 100) / 100, txt: '≥ ' + fmtNum(base - 2) + ' D（负镜法，比推进法低约 2D）', src: 'Hofstetter 公式 + 测量方法差异' };
+  }
+  return { val: Math.round(base * 100) / 100, txt: '≥ ' + fmtNum(base) + ' D（15 − 0.25 × 年龄）', src: 'Hofstetter 最小调节幅度公式' };
+}
+function facilityNorm(age){
+  if (age === null) return { mono: 11, bi: 8, txt: '单眼 ≥11 cpm，双眼 ≥8 cpm', src: '临床标准' };
+  if (age >= 8 && age <= 12) return { mono: 7, bi: 5, txt: '单眼 ≥7 cpm，双眼 ≥5 cpm', src: '儿童临床标准（8~12 岁）' };
+  if (age < 8) return { mono: 7, bi: 5, txt: '单眼 ≥7 cpm，双眼 ≥5 cpm（<8 岁参考儿童标准）', src: '儿童临床标准' };
+  if (age <= 30) return { mono: 11, bi: 8, txt: '单眼 ≥11 cpm，双眼 ≥8 cpm', src: '临床标准（13~30 岁）' };
+  return { mono: 11, bi: 8, txt: '单眼 ≥11 cpm，双眼 ≥8 cpm（>30 岁沿用成人标准，需考虑生理性下降）', src: '临床标准' };
+}
+function stereoNorm(age){
+  if (age === null) return NORM.stereoAdult;
+  if (age >= 7) return NORM.stereoChild7;
+  if (age === 5 || age === 6) return NORM.stereoChild5;
+  return NORM.stereoChild4;
+}
+
+/* ============================== 2. 数据层 ============================== */
+const storage = {
+  read: function(key, fallback){
+    try {
+      const raw = localStorage.getItem(key);
+      if (!raw) return fallback;
+      return JSON.parse(raw);
+    } catch (e) {
+      console.warn('读取本地数据失败', e);
+      return fallback;
+    }
+  },
+  write: function(key, val){
+    try {
+      localStorage.setItem(key, JSON.stringify(val));
+      return true;
+    } catch (e) {
+      toast('本地存储写入失败，请检查浏览器存储空间');
+      return false;
+    }
+  },
+  remove: function(key){ try { localStorage.removeItem(key); } catch (e) {} }
+};
+
+function blankRecord(){
+  return {
+    id: '', name: '', age: null, gender: '男', wear: 'frame',
+    odSph: null, odCyl: null, odAx: null, osSph: null, osCyl: null, osAx: null,
+    odUcva: '', osUcva: '', odBcva: '', osBcva: '',
+    cyclo: 'na', fogging: 'na',
+    symNear: false, symFar: false, symHead: false, symSkip: false, symDipl: false, symSleepy: false,
+    symDuration: '', symWorst: '', nearHours: null, continuous: 'no',
+    history: 'none', surgery: 'no', training: 'no',
+    redFlags: [],
+    ampMethod: 'pushup', ampOd: null, ampOs: null, ampOu: null,
+    nra: null, pra: null, bcc: null, facOd: null, facOs: null, facOu: null,
+    distPhoriaVal: null, distPhoriaDir: 'exo', nearPhoriaVal: null, nearPhoriaDir: 'exo',
+    aca: null, acaMethod: 'calc', npc: null, vergFac: null,
+    distBI: '', distBO: '', nearBI: '', nearBO: '',
+    worthDist: 'na', worthNear: 'na', stereo: null, aniseikonia: null,
+    motility: '', pd: null, note: '',
+    createdAt: '', nextReview: '', sample: false, analysis: null
+  };
+}
+
+function loadRecords(){
+  const list = storage.read(LS_RECORDS, null);
+  if (!Array.isArray(list)) return [];
+  return list.map(function(r){
+    const rec = Object.assign(blankRecord(), r);
+    /* 兼容旧数据：PRA 统一按负值口径存储（旧版曾按正值录入） */
+    if (rec.pra !== null && rec.pra > 0) rec.pra = -Math.abs(rec.pra);
+    return rec;
+  });
+}
+function saveRecords(){
+  storage.write(LS_RECORDS, state.records);
+}
+function findRecord(id){
+  for (let i = 0; i < state.records.length; i++) {
+    if (state.records[i].id === id) return state.records[i];
+  }
+  return null;
+}
+function upsertRecord(rec){
+  const idx = state.records.findIndex(function(r){ return r.id === rec.id; });
+  if (idx >= 0) state.records[idx] = rec; else state.records.unshift(rec);
+  saveRecords();
+}
+
+/* ============================== 3. 示例数据 ============================== */
+function seedData(){
+  const meta = storage.read(LS_META, {});
+  if (meta.seeded) return;
+  const today = todayStr();
+  const s1 = Object.assign(blankRecord(), {
+    id: uid(), name: '小明（示例）', age: 12, gender: '男', wear: 'frame',
+    odSph: -1.5, odCyl: 0, odAx: 180, osSph: -1.25, osCyl: 0, osAx: 180,
+    odUcva: '0.2', osUcva: '0.25', odBcva: '1.0', osBcva: '1.0',
+    cyclo: 'no', fogging: 'yes',
+    symNear: true, symHead: true, symDuration: '约 3 个月', symWorst: '写作业 20 分钟后、下午',
+    nearHours: 6, continuous: 'yes',
+    ampMethod: 'pushup', ampOd: 5.0, ampOs: 5.5, ampOu: 5.0,
+    nra: 2.25, pra: -1.25, bcc: 1.00, facOd: 6, facOs: 7, facOu: 5,
+    distPhoriaVal: 2, distPhoriaDir: 'exo', nearPhoriaVal: 8, nearPhoriaDir: 'exo',
+    aca: 4.5, acaMethod: 'calc', npc: 10, vergFac: 8,
+    distBI: 'X/7/4', distBO: '9/19/10', nearBI: '6/10/6', nearBO: '12/16/8',
+    worthDist: '4', worthNear: '4', stereo: 80, aniseikonia: 0.5,
+    motility: '注视稳定，扫视略欠精准', pd: 60,
+    note: '示例数据：对应提示词 Few-shot 案例，复查已逾期。',
+    createdAt: addDays(today, -38), nextReview: addDays(today, -10), sample: true
+  });
+  const s2 = Object.assign(blankRecord(), {
+    id: uid(), name: '朵朵（示例）', age: 9, gender: '女', wear: 'frame',
+    odSph: -0.75, osSph: -1.0, odBcva: '1.0', osBcva: '1.0', cyclo: 'no',
+    symFar: true, symDuration: '半年', symWorst: '晚上阅读时',
+    nearHours: 4, continuous: 'no',
+    ampMethod: 'pushup', ampOd: 13.0, ampOs: 13.0, ampOu: 13.0,
+    nra: 2.00, pra: -2.00, bcc: 0.50, facOd: 6, facOs: 6, facOu: 5,
+    distPhoriaVal: 1, distPhoriaDir: 'exo', nearPhoriaVal: 5, nearPhoriaDir: 'exo',
+    aca: 4.0, acaMethod: 'calc', npc: 5, vergFac: 10,
+    distBI: 'X/8/4', distBO: '10/20/11', nearBI: '12/20/12', nearBO: '16/21/12',
+    worthDist: '4', worthNear: '4', stereo: 60,
+    note: '示例数据：调节幅度正常，但单眼调节灵敏度 6cpm 低于 8~12 岁标准（≥7cpm）。',
+    createdAt: addDays(today, -30), nextReview: today, sample: true
+  });
+  const s3 = Object.assign(blankRecord(), {
+    id: uid(), name: '李先生（示例）', age: 28, gender: '男', wear: 'contact',
+    odSph: -3.0, osSph: -3.25, odBcva: '1.0', osBcva: '1.0', cyclo: 'no', fogging: 'yes',
+    symNear: true, symFar: true, symSleepy: true, symDuration: '4 个月', symWorst: '下班前、下午',
+    nearHours: 10, continuous: 'yes',
+    ampMethod: 'pushup', ampOd: 11.0, ampOs: 11.0, ampOu: 11.0,
+    nra: 1.25, pra: -3.00, bcc: 0.25, facOd: 12, facOs: 12, facOu: 9,
+    distPhoriaVal: 1, distPhoriaDir: 'exo', nearPhoriaVal: 3, nearPhoriaDir: 'exo',
+    aca: 3.5, acaMethod: 'grad', npc: 5, vergFac: 12,
+    distBI: 'X/8/5', distBO: '10/20/11', nearBI: '12/20/12', nearBO: '18/24/13',
+    worthDist: '4', worthNear: '4', stereo: 40, aniseikonia: 0.25,
+    symWorst: '下午 4 点后最明显', note: '示例数据：长时间近距离用眼，调节过度倾向。',
+    createdAt: addDays(today, -18), nextReview: addDays(today, 18), sample: true
+  });
+  const s4 = Object.assign(blankRecord(), {
+    id: uid(), name: '童童（示例）', age: 6, gender: '男', wear: 'none',
+    odSph: 0.50, odCyl: -0.25, odAx: 175, osSph: 0.25, osCyl: 0, osAx: 180,
+    odUcva: '0.8', osUcva: '0.8', odBcva: '1.0', osBcva: '1.0',
+    cyclo: 'yes', fogging: 'na',
+    symDuration: '家长主诉：看电视越坐越近', symWorst: '看电视、写作业时',
+    nearHours: 3, continuous: 'no',
+    ampMethod: 'pushup', ampOd: 12.0, ampOs: 12.0, ampOu: 12.0,
+    nra: 2.00, pra: -2.00, bcc: 0.50, facOd: 8, facOs: 8, facOu: 6,
+    distPhoriaVal: 2, distPhoriaDir: 'exo', nearPhoriaVal: 5, nearPhoriaDir: 'exo',
+    aca: 4.0, acaMethod: 'calc', npc: 5, vergFac: 10,
+    distBI: 'X/9/5', distBO: '10/20/12', nearBI: '14/22/14', nearBO: '18/24/13',
+    worthDist: '4', worthNear: '4', stereo: 100,
+    note: '示例数据：散瞳后等效球镜偏低，需关注远视储备。',
+    createdAt: addDays(today, -25), nextReview: addDays(today, 3), sample: true
+  });
+  const s5 = Object.assign(blankRecord(), {
+    id: uid(), name: '王女士（示例）', age: 35, gender: '女', wear: 'frame',
+    odSph: -2.0, osSph: -2.25, odBcva: '1.0', osBcva: '1.0', cyclo: 'na',
+    symNear: true, symDuration: '1 个月', nearHours: 7,
+    nra: 2.25, bcc: 0.50,
+    distPhoriaVal: 0, distPhoriaDir: 'ortho', nearPhoriaVal: 4, nearPhoriaDir: 'exo',
+    worthDist: 'na', worthNear: 'na',
+    note: '示例数据：只做了部分检查（AMP、PRA、融合范围未查），用于演示数据不足时的处理。',
+    createdAt: addDays(today, -5), nextReview: '', sample: true
+  });
+  state.records = [s1, s2, s3, s4, s5];
+  state.records.forEach(function(r){ r.analysis = summarize(r); });
+  saveRecords();
+  storage.write(LS_META, { seeded: true, seededAt: new Date().toISOString(), version: APP_VERSION });
+}
+
+/* ============================== 4. 计算层：通用解析 ============================== */
+/* 符号约定：外隐斜 = 负值，内隐斜 = 正值，正位 = 0 */
+function phoriaSigned(val, dir){
+  if (val === null) return (dir === 'ortho' ? 0 : null);
+  if (dir === 'exo') return -Math.abs(val);
+  if (dir === 'ortho') return 0;
+  return Math.abs(val);
+}
+function phoriaText(v){
+  if (v === null) return '未查';
+  if (v === 0) return '正位';
+  return (v < 0 ? '外隐斜 ' : '内隐斜 ') + fmtNum(Math.abs(v)) + 'Δ';
+}
+function parseRange(str){
+  if (!str || !String(str).trim()) return null;
+  const parts = String(str).split(/[\/／,，、\s]+/).filter(function(s){ return s !== ''; });
+  if (!parts.length) return null;
+  function pv(s){
+    if (!s || s === 'X' || s === 'x' || s === '未查' || s === '—' || s === '-') return null;
+    const n = Number(s);
+    return isNaN(n) ? null : n;
+  }
+  return { blur: pv(parts[0]), brk: pv(parts[1]), rec: pv(parts[2]) };
+}
+function rangeText(rg){
+  if (!rg) return '未查';
+  function f(v){ return v === null ? 'X' : fmtNum(v); }
+  return f(rg.blur) + ' / ' + f(rg.brk) + ' / ' + f(rg.rec);
+}
+function isBadge(st){ return st === 'bad' || st === 'mid'; }
+
+/* ============================== 5. 数据校验与红旗征 ============================== */
+function validateRecord(rec){
+  const w = [];
+  const ampAll = [rec.ampOd, rec.ampOs, rec.ampOu];
+  ampAll.forEach(function(v){ if (v !== null && (v > 20 || v < 0)) w.push('AMP ' + fmtNum(v) + 'D 超出合理范围（一般不超过 20D），请核实。'); });
+  const phoAll = [phoriaSigned(rec.distPhoriaVal, rec.distPhoriaDir), phoriaSigned(rec.nearPhoriaVal, rec.nearPhoriaDir)];
+  phoAll.forEach(function(v){ if (v !== null && Math.abs(v) > 30) w.push('隐斜 ' + fmtNum(Math.abs(v)) + 'Δ 超出合理范围（一般不超过 30Δ），请核实方向与数值。'); });
+  if (rec.nra !== null && Math.abs(rec.nra) > 5) w.push('NRA ' + signed(rec.nra) + 'D 绝对值超过 5D，请核实。');
+  if (rec.pra !== null && Math.abs(rec.pra) > 5) w.push('PRA 绝对值 ' + fmtNum(Math.abs(rec.pra)) + 'D 超过 5D，请核实。');
+  if (rec.aca !== null && (rec.aca < 0 || rec.aca > 12)) w.push('AC/A ' + fmtNum(rec.aca) + ' Δ/D 超出常见范围，请核实计算方法（计算法 / 梯度法）。');
+  if (rec.npc !== null && (rec.npc < 0 || rec.npc > 30)) w.push('NPC ' + fmtNum(rec.npc) + 'cm 超出常见范围，请核实。');
+  if (rec.nearHours !== null && rec.nearHours > 18) w.push('每日近距离用眼 ' + fmtNum(rec.nearHours) + ' 小时明显偏高，请核实。');
+
+  const dDist = phoriaSigned(rec.distPhoriaVal, rec.distPhoriaDir);
+  const dNear = phoriaSigned(rec.nearPhoriaVal, rec.nearPhoriaDir);
+  if (dDist !== null && dNear !== null && rec.aca !== null) {
+    if (rec.aca > 5 && dNear < dDist - 2) w.push('AC/A 偏高（' + fmtNum(rec.aca) + 'Δ/D）但近距隐斜比远距更偏外，二者存在逻辑矛盾，请核实测量。');
+    if (rec.aca < 3 && dNear > dDist + 4) w.push('AC/A 偏低（' + fmtNum(rec.aca) + 'Δ/D）但近距偏内（内隐斜多于远距），二者存在逻辑矛盾，请核实测量。');
+  }
+  if (rec.age !== null && rec.age <= 12 && rec.cyclo !== 'yes') {
+    w.push('远视储备仅适用于睫状肌麻痹（散瞳）后的等效球镜数据，当前未散瞳，本报告不做远视储备判定。');
+  }
+  if (rec.ampMethod === 'na' && (rec.ampOd !== null || rec.ampOs !== null || rec.ampOu !== null)) {
+    w.push('已填写 AMP 数值但未标注测量方法（推进法 / 负镜法），评估按推进法口径处理。');
+  }
+  return w;
+}
+
+function redFlagHits(rec){
+  return (rec.redFlags || []).slice();
+}
+
+/* ============================== 6. 计算层：调节功能 ============================== */
+function assessAccommodation(rec){
+  const rows = [], findings = [];
+  const age = rec.age;
+  const ampN = ampExpected(age, rec.ampMethod);
+  const ampList = [rec.ampOd, rec.ampOs, rec.ampOu].filter(function(v){ return v !== null; });
+  const ampWorst = ampList.length ? Math.min.apply(null, ampList) : null;
+  const facN = facilityNorm(age);
+
+  /* --- AMP --- */
+  let ampDiff = null;
+  if (ampWorst === null) {
+    rows.push({ g:'调节', n:'AMP 调节幅度', v:'未查', norm: ampN.txt, st:'na', src: ampN.src,
+      note:'缺少 AMP，无法评估调节幅度相关维度。' });
+  } else {
+    ampDiff = (ampN.val === null) ? null : (ampN.val - ampWorst);
+    let st = 'ok', note = '在正常范围内。';
+    if (ampDiff !== null) {
+      if (ampDiff >= 2) { st = 'bad'; note = '低于年龄预期值 ' + fmtNum(ampDiff) + 'D（≥2D），符合调节不足的主要条件。'; }
+      else if (ampDiff > 0) { st = 'mid'; note = '略低于年龄预期值 ' + fmtNum(ampDiff) + 'D（不足 2D），属轻度偏离，建议随访。'; }
+    }
+    rows.push({ g:'调节', n:'AMP 调节幅度', v: fmtNum(ampWorst) + ' D' + (ampList.length > 1 ? '（取较差值）' : ''),
+      norm: ampN.txt, st: st, src: ampN.src, note: note });
+  }
+
+  /* --- NRA --- */
+  let nraLow = false;
+  if (rec.nra === null) {
+    rows.push({ g:'调节', n:'NRA 负相对调节', v:'未查', norm: NORM.nra.txt, st:'na', src: NORM.nra.src, note:'未查，无法评估放松调节的能力。' });
+  } else {
+    let st = 'ok', note = '在正常范围内。';
+    if (rec.nra < NORM.nra.lo) {
+      st = rec.nra <= 1.25 ? 'bad' : 'mid'; nraLow = true;
+      note = '低于正常下限 +1.75D，提示放松调节困难，符合调节过度的主要条件。';
+    } else if (rec.nra > NORM.nra.hi) {
+      st = 'mid';
+      note = '高于正常上限 +2.50D，需考虑远视欠矫或调节不足的可能。';
+    }
+    rows.push({ g:'调节', n:'NRA 负相对调节', v: signed(rec.nra) + ' D', norm: NORM.nra.txt, st: st, src: NORM.nra.src, note: note });
+  }
+
+  /* --- PRA --- */
+  let praLow = false;
+  if (rec.pra === null) {
+    rows.push({ g:'调节', n:'PRA 正相对调节', v:'未查', norm: NORM.pra.txt, st:'na', src: NORM.pra.src, note:'未查，无法评估调节储备。' });
+  } else {
+    const p = Math.abs(rec.pra);
+    let st = 'ok', note = '在正常范围内。';
+    if (p < NORM.pra.lo) { st = p <= 1.25 ? 'bad' : 'mid'; praLow = true; note = '绝对值低于 1.75D（即负得不够多），调节储备不足，是调节不足的支持条件。'; }
+    else if (p > NORM.pra.hi) { note = '绝对值高于 3.00D，调节储备良好（若同时 NRA 偏低需结合判断）。'; }
+    rows.push({ g:'调节', n:'PRA 正相对调节', v: signed(rec.pra) + ' D', norm: NORM.pra.txt, st: st, src: NORM.pra.src, note: note });
+  }
+
+  /* --- BCC --- */
+  let bccHigh = false, bccLow = false;
+  if (rec.bcc === null) {
+    rows.push({ g:'调节', n:'BCC / MEM 调节反应', v:'未查', norm: NORM.bcc.txt, st:'na', src: NORM.bcc.src, note:'未查，无法评估调节滞后 / 超前。' });
+  } else {
+    let st = 'ok', note = '在正常范围内（生理性调节滞后约 +0.50D）。';
+    if (rec.bcc > NORM.bcc.hi) { st = rec.bcc > 1.0 ? 'bad' : 'mid'; bccHigh = true; note = '高于正常上限 +0.75D，符合调节滞后条件，近距离用眼易疲劳。'; }
+    else if (rec.bcc < NORM.bcc.lo) { st = 'mid'; bccLow = true; note = '低于正常下限 +0.25D，提示调节超前，常与调节过度并存。'; }
+    rows.push({ g:'调节', n:'BCC / MEM 调节反应', v: signed(rec.bcc) + ' D', norm: NORM.bcc.txt, st: st, src: NORM.bcc.src, note: note });
+  }
+
+  /* --- 调节灵敏度 --- */
+  const facMonoList = [rec.facOd, rec.facOs].filter(function(v){ return v !== null; });
+  const facMono = facMonoList.length ? Math.min.apply(null, facMonoList) : null;
+  let facMonoLow = false, facBiLow = false;
+  if (facMono === null) {
+    rows.push({ g:'调节', n:'调节灵敏度（单眼）', v:'未查', norm: facN.txt.split('，')[0], st:'na', src: facN.src, note:'未查。' });
+  } else {
+    let st = 'ok', note = '在正常范围内。';
+    if (facMono < facN.mono) { st = (facMono <= facN.mono - 3) ? 'bad' : 'mid'; facMonoLow = true; note = '低于年龄对应正常值（' + facN.mono + 'cpm），提示调焦速度偏慢。'; }
+    rows.push({ g:'调节', n:'调节灵敏度（单眼）', v: fmtNum(facMono) + ' cpm（取较差值）', norm: facN.txt.split('，')[0], st: st, src: facN.src, note: note });
+  }
+  if (rec.facOu === null) {
+    rows.push({ g:'调节', n:'调节灵敏度（双眼）', v:'未查', norm: facN.txt.split('，')[1] || facN.txt, st:'na', src: facN.src, note:'未查。' });
+  } else {
+    let st = 'ok', note = '在正常范围内。';
+    if (rec.facOu < facN.bi) { st = (rec.facOu <= facN.bi - 2) ? 'bad' : 'mid'; facBiLow = true; note = '低于年龄对应正常值（' + facN.bi + 'cpm）。'; }
+    rows.push({ g:'调节', n:'调节灵敏度（双眼）', v: fmtNum(rec.facOu) + ' cpm', norm: facN.txt.split('，')[1] || facN.txt, st: st, src: facN.src, note: note });
+  }
+
+  /* --- 诊断归纳 --- */
+  const sufficient = (ampWorst !== null) && (rec.pra !== null || rec.nra !== null || rec.bcc !== null);
+  if (ampWorst !== null && ampDiff !== null && ampDiff >= 2) {
+    const sup = [];
+    if (praLow) sup.push('PRA 绝对值低于 1.75D');
+    if (bccHigh) sup.push('BCC > +0.75D（调节滞后）');
+    if (facMonoLow) sup.push('单眼调节灵敏度低于年龄正常值');
+    findings.push({ name:'调节不足', level:'major',
+      basis: 'AMP ' + fmtNum(ampWorst) + 'D 低于该年龄最小调节幅度预期值（' + ampN.txt.replace('≥ ','') + '），差值 ' + fmtNum(ampDiff) + 'D（≥2D）' + (sup.length ? '；伴 ' + sup.join('、') : '') + '。' });
+  }
+  if (nraLow) {
+    const sup = [];
+    if (bccLow) sup.push('BCC < +0.25D');
+    if (facMonoLow || facBiLow) sup.push('调节灵敏度下降');
+    findings.push({ name:'调节过度', level:'major',
+      basis: 'NRA ' + signed(rec.nra) + 'D 低于 +1.75D，提示调节放松困难' + (sup.length ? '；伴 ' + sup.join('、') : '') + '。' });
+  }
+  if (bccHigh && !(ampDiff !== null && ampDiff >= 2)) {
+    findings.push({ name:'调节滞后', level: rec.bcc > 1.0 ? 'major' : 'minor',
+      basis: 'BCC ' + signed(rec.bcc) + 'D 高于 +0.75D，调节反应落后于调节刺激。' });
+  }
+  if (facMonoLow || facBiLow) {
+    const monoDev = (facMono !== null) ? (facN.mono - facMono) / facN.mono : 0;
+    const biDev = (rec.facOu !== null) ? (facN.bi - rec.facOu) / facN.bi : 0;
+    const lv = (Math.max(monoDev, biDev) >= 0.3) ? 'major' : 'minor';
+    const detail = [];
+    if (facMonoLow) detail.push('单眼 ' + fmtNum(facMono) + ' cpm（正常 ' + facN.mono + ' cpm）');
+    if (facBiLow) detail.push('双眼 ' + fmtNum(rec.facOu) + ' cpm（正常 ' + facN.bi + ' cpm）');
+    const basicOk = (ampDiff === null || ampDiff < 2) && !nraLow && !praLow;
+    findings.push({ name:'调节灵活度下降', level: lv,
+      basis: (basicOk ? 'AMP 与 NRA / PRA 基本正常，但' : '在已有调节异常的基础上，') +
+        '调节灵敏度 ' + detail.join('、') + ' 低于本年龄对应正常值（' + facN.txt + '）' +
+        (basicOk ? '，符合调节灵活度下降的主要条件。' : '，提示调节反应速度同时下降。') });
+  }
+  if (ampWorst === null && rec.pra === null && rec.nra === null && rec.bcc === null) {
+    findings.push({ name:'调节功能无法评估', level:'none', basis:'调节相关数据缺失（AMP、NRA、PRA、BCC 均未查）。' });
+  }
+  return { rows: rows, findings: findings, sufficient: sufficient,
+    flags: { ampDiff: ampDiff, ampWorst: ampWorst, nraLow: nraLow, praLow: praLow, bccHigh: bccHigh, facMonoLow: facMonoLow, facBiLow: facBiLow, ampN: ampN, facN: facN } };
+}
+
+/* ============================== 7. 计算层：聚散功能 ============================== */
+/* v 为带符号隐斜：负 = 外隐斜，正 = 内隐斜 */
+function judgePhoria(v, norm){
+  if (v === null) return { st:'na', note:'未查，该维度不做判断。' };
+  if (v < norm.lo) {
+    const dev = norm.lo - v;
+    return { st: dev >= 3 ? 'bad' : 'mid', note: '外隐斜 ' + fmtNum(Math.abs(v)) + 'Δ，偏离正常范围（' + norm.txt + '）。' };
+  }
+  if (v > norm.hi) {
+    const dev = v - norm.hi;
+    return { st: dev >= 3 ? 'bad' : 'mid', note: '内隐斜 ' + fmtNum(v) + 'Δ，偏离正常范围（' + norm.txt + '）。' };
+  }
+  return { st:'ok', note:'在正常范围内。' };
+}
+function judgeRange(rg, cfg, name){
+  if (!rg || (rg.brk === null && rg.blur === null && rg.rec === null)) {
+    return { st:'na', note:'未查，该融合方向不做判断。' };
+  }
+  if (rg.brk === null) return { st:'na', note:'缺破裂点，无法判断融合储备。' };
+  const lo = cfg.lo, midLo = cfg.midLo;
+  if (rg.brk >= lo) return { st:'ok', note:'破裂点 ' + fmtNum(rg.brk) + 'Δ 达到正常下限（' + fmtNum(lo) + 'Δ）。' };
+  if (midLo !== undefined && rg.brk >= midLo) {
+    return { st:'mid', note:'破裂点 ' + fmtNum(rg.brk) + 'Δ 略低于正常下限（' + fmtNum(lo) + 'Δ），融合储备偏紧。' };
+  }
+  return { st:'bad', note:'破裂点 ' + fmtNum(rg.brk) + 'Δ 明显低于正常下限（' + fmtNum(lo) + 'Δ）。' };
+}
+
+function assessVergence(rec){
+  const rows = [], findings = [];
+  const dDist = phoriaSigned(rec.distPhoriaVal, rec.distPhoriaDir);
+  const dNear = phoriaSigned(rec.nearPhoriaVal, rec.nearPhoriaDir);
+  const distBI = parseRange(rec.distBI), distBO = parseRange(rec.distBO);
+  const nearBI = parseRange(rec.nearBI), nearBO = parseRange(rec.nearBO);
+
+  /* --- 隐斜 --- */
+  const jDist = judgePhoria(dDist, NORM.distExo);
+  rows.push({ g:'聚散', n:'远距隐斜', v: (rec.distPhoriaVal === null && rec.distPhoriaDir !== 'ortho') ? '未查' : phoriaText(dDist),
+    norm: NORM.distExo.txt, st: jDist.st, src: NORM.distExo.src, note: jDist.note });
+  const jNear = judgePhoria(dNear, NORM.nearExo);
+  rows.push({ g:'聚散', n:'近距隐斜', v: (rec.nearPhoriaVal === null && rec.nearPhoriaDir !== 'ortho') ? '未查' : phoriaText(dNear),
+    norm: NORM.nearExo.txt, st: jNear.st, src: NORM.nearExo.src, note: jNear.note });
+
+  /* --- AC/A --- */
+  let acaHigh = false, acaLow = false;
+  if (rec.aca === null) {
+    rows.push({ g:'聚散', n:'AC/A 比率', v:'未查', norm: NORM.aca.txt, st:'na', src: NORM.aca.src, note:'未查，无法评估调节性集合关系。' });
+  } else {
+    let st = 'ok', note = '在正常范围内。';
+    if (rec.aca < NORM.aca.lo) { st = (NORM.aca.lo - rec.aca) >= 1 ? 'bad' : 'mid'; acaLow = true; note = '低于 3 Δ/D，调节性集合偏低，可能与集合不足相关。'; }
+    else if (rec.aca > NORM.aca.hi) { st = (rec.aca - NORM.aca.hi) >= 1.5 ? 'bad' : 'mid'; acaHigh = true; note = '高于 5 Δ/D，调节性集合偏强，可能与集合过度相关。'; }
+    rows.push({ g:'聚散', n:'AC/A 比率', v: fmtNum(rec.aca, 1) + ' Δ/D（' + (rec.acaMethod === 'grad' ? '梯度法' : rec.acaMethod === 'calc' ? '计算法' : '方法未查') + '）',
+      norm: NORM.aca.txt, st: st, src: NORM.aca.src, note: note });
+  }
+
+  /* --- NPC --- */
+  let npcAbn = false;
+  if (rec.npc === null) {
+    rows.push({ g:'聚散', n:'NPC 集合近点（破裂点）', v:'未查', norm: NORM.npc.txt, st:'na', src: NORM.npc.src, note:'未查，无法评估集合近点。' });
+  } else {
+    let st = 'ok', note = '破裂点 < 6cm，在正常范围内。';
+    if (rec.npc >= 6) {
+      npcAbn = true;
+      st = rec.npc >= 10 ? 'bad' : 'mid';
+      note = '破裂点 ' + fmtNum(rec.npc) + 'cm ≥ 6cm，属集合近点后退（老视前异常阈值）' + (rec.age !== null && rec.age >= 40 ? '；该年龄需按老视口径判断，≥10cm 为异常。' : '。');
+    }
+    rows.push({ g:'聚散', n:'NPC 集合近点（破裂点）', v: fmtNum(rec.npc) + ' cm', norm: NORM.npc.txt, st: st, src: NORM.npc.src, note: note });
+  }
+
+  /* --- 融合范围 --- */
+  const judgeList = [
+    { k:'distBI', n:'远距 BI 融合范围', rg: distBI, cfg:{ lo:7, midLo:4 }, cfgText: NORM.distBI.txt, src: NORM.distBI.src },
+    { k:'distBO', n:'远距 BO 融合范围', rg: distBO, cfg:{ lo:19, midLo:11 }, cfgText: NORM.distBO.txt, src: NORM.distBO.src },
+    { k:'nearBI', n:'近距 BI 融合范围', rg: nearBI, cfg:{ lo:17, midLo:13 }, cfgText: NORM.nearBI.txt, src: NORM.nearBI.src },
+    { k:'nearBO', n:'近距 BO 融合范围', rg: nearBO, cfg:{ lo:18, midLo:15 }, cfgText: NORM.nearBO.txt, src: NORM.nearBO.src }
+  ];
+  const rangeJudged = {};
+  judgeList.forEach(function(it){
+    const j = judgeRange(it.rg, it.cfg, it.n);
+    rangeJudged[it.k] = j.st;
+    rows.push({ g:'聚散', n: it.n, v: rangeText(it.rg), norm: it.cfgText, st: j.st, src: it.src, note: j.note });
+  });
+
+  /* --- 聚散灵敏度 --- */
+  if (rec.vergFac === null) {
+    rows.push({ g:'聚散', n:'聚散灵敏度（3ΔBI / 12ΔBO）', v:'未查', norm: NORM.vergFac.txt, st:'na', src: NORM.vergFac.src, note:'未查。' });
+  } else {
+    let st = 'ok', note = '在正常范围内。';
+    if (rec.vergFac < NORM.vergFac.lo) { st = rec.vergFac < 6 ? 'bad' : 'mid'; note = '低于 9cpm 参考值，聚散切换速度偏慢。'; }
+    rows.push({ g:'聚散', n:'聚散灵敏度（3ΔBI / 12ΔBO）', v: fmtNum(rec.vergFac) + ' cpm', norm: NORM.vergFac.txt, st: st, src: NORM.vergFac.src, note: note });
+  }
+
+  /* --- 诊断归纳（约定：外隐斜为负、内隐斜为正） --- */
+  /* exoGap = 近距比远距多出的外隐斜量（>4Δ 是集合不足的核心条件） */
+  const exoGap = (dNear !== null && dDist !== null) ? (dDist - dNear) : null;
+  const nearBObrk = (nearBO && nearBO.brk !== null) ? nearBO.brk : null;
+  const nearBIbrk = (nearBI && nearBI.brk !== null) ? nearBI.brk : null;
+  const distBObrk = (distBO && distBO.brk !== null) ? distBO.brk : null;
+  const distBIbrk = (distBI && distBI.brk !== null) ? distBI.brk : null;
+
+  /* 集合不足 CI：近距比远距更偏外（更负）> 4Δ */
+  if (exoGap !== null && exoGap > 4) {
+    const supports = [];
+    if (npcAbn) supports.push('NPC ≥ 6cm');
+    if (nearBObrk !== null && nearBObrk < 18) supports.push('近距 BO 破裂点 ' + fmtNum(nearBObrk) + 'Δ < 18Δ');
+    let sheardFail = false;
+    if (dNear !== null && dNear < 0 && nearBObrk !== null) {
+      const need = 2 * Math.abs(dNear);
+      if (nearBObrk < need) { sheardFail = true; supports.push('不满足 Sheard 准则（需 BO 破裂点 ≥ ' + fmtNum(need) + 'Δ）'); }
+      else supports.push('满足 Sheard 准则（BO 破裂点 ≥ 2 × 近距外隐斜）');
+    }
+    if (supports.length && (npcAbn || sheardFail || (nearBObrk !== null && nearBObrk < 18))) {
+      findings.push({ name:'集合不足（CI）', level:'major',
+        basis: '近距 ' + phoriaText(dNear) + '，远距 ' + phoriaText(dDist) + '，近距外隐斜比远距大 ' + fmtNum(exoGap) + 'Δ（>4Δ）；' + supports.join('；') + '。' });
+    } else {
+      findings.push({ name:'疑似集合不足', level:'minor',
+        basis: '近距外隐斜比远距大 ' + fmtNum(exoGap) + 'Δ（>4Δ），但 NPC 与近距 BO 融合储备未见明显异常（' + supports.join('；') + '），暂按临界处理，建议随访。' });
+    }
+  }
+  /* 集合过度 CE：近距内隐斜 > 6Δ（正值） */
+  if (dNear !== null && dNear > 6) {
+    const sup = [];
+    if (acaHigh) sup.push('AC/A ' + fmtNum(rec.aca, 1) + 'Δ/D > 5');
+    if (nearBIbrk !== null && nearBIbrk < 17) sup.push('近距 BI 破裂点 ' + fmtNum(nearBIbrk) + 'Δ 偏低');
+    findings.push({ name:'集合过度（CE）', level:'major',
+      basis: '近距内隐斜 ' + fmtNum(dNear) + 'Δ（>6Δ）' + (sup.length ? '；' + sup.join('；') : '') + '。' });
+  }
+  /* 散开不足 DI：远距内隐斜（正值）大于近距 */
+  if (dDist !== null && dDist >= 1 && dNear !== null && dDist > dNear) {
+    const sup = [];
+    if (distBIbrk !== null && distBIbrk < 7) sup.push('远距 BI 破裂点 ' + fmtNum(distBIbrk) + 'Δ 偏低');
+    findings.push({ name:'散开不足（DI）', level:'major',
+      basis: '远距内隐斜 ' + fmtNum(dDist) + 'Δ 大于近距（' + phoriaText(dNear) + '）' + (sup.length ? '；' + sup.join('；') : '') + '。' });
+  }
+  /* 散开过度 DE：远距外隐斜（负值）大于近距 */
+  if (dDist !== null && dDist < 0 && dNear !== null && dDist < dNear) {
+    const sup = [];
+    if (distBObrk !== null && distBObrk < 19) sup.push('远距 BO 破裂点 ' + fmtNum(distBObrk) + 'Δ 偏低');
+    findings.push({ name:'散开过度（DE）', level:'major',
+      basis: '远距外隐斜 ' + fmtNum(Math.abs(dDist)) + 'Δ 大于近距（' + phoriaText(dNear) + '）' + (sup.length ? '；' + sup.join('；') : '') + '。' });
+  }
+  if (dDist === null && dNear === null) {
+    findings.push({ name:'聚散功能无法评估', level:'none', basis:'远距与近距隐斜均未查，无法判断聚散功能状态。' });
+  }
+
+  return { rows: rows, findings: findings,
+    flags: { dDist: dDist, dNear: dNear, exoGap: exoGap, npcAbn: npcAbn, acaHigh: acaHigh, acaLow: acaLow,
+      nearBObrk: nearBObrk, nearBIbrk: nearBIbrk, distBObrk: distBObrk, distBIbrk: distBIbrk,
+      distBI: distBI, distBO: distBO, nearBI: nearBI, nearBO: nearBO } };
+}
+
+/* ============================== 8. 计算层：三级视功能 ============================== */
+function assessBinocular(rec){
+  const rows = [], findings = [];
+
+  /* Worth 4 灯 */
+  const wd = rec.worthDist, wn = rec.worthNear;
+  const wText = { '4':'4 灯（双眼单视）', '2':'2 灯（一眼抑制）', '3':'3 灯（一眼抑制）', '5':'5 灯（复视 / 异常视网膜对应）', 'na':'未查' };
+  let worthBad = false;
+  if (wd === 'na' && wn === 'na') {
+    rows.push({ g:'三级视', n:'Worth 4 灯', v:'未查', norm:'远距、近距均看到 4 个灯（双眼单视）', st:'na', src:'临床标准', note:'未查，无法评估同时视。' });
+  } else {
+    const bad = (wd !== '4' && wd !== 'na') || (wn !== '4' && wn !== 'na');
+    worthBad = bad;
+    const parts = [];
+    if (wd !== 'na') parts.push('远距 ' + wText[wd]);
+    if (wn !== 'na') parts.push('近距 ' + wText[wn]);
+    rows.push({ g:'三级视', n:'Worth 4 灯', v: parts.join('；'), norm:'远距、近距均看到 4 个灯（双眼单视）',
+      st: bad ? 'bad' : 'ok', src:'临床标准',
+      note: bad ? '未看到 4 灯，提示存在抑制或异常视网膜对应，需进一步评估。' : '远距、近距均见 4 灯，同时视功能在正常范围内。' });
+    if (bad) findings.push({ name:'同时视异常（提示抑制或异常视网膜对应）', level:'major',
+      basis:'Worth 4 灯检查结果：' + parts.join('；') + '，未达到「远距、近距均见 4 灯」的正常标准。' });
+  }
+
+  /* 立体视 */
+  const stN = stereoNorm(rec.age);
+  if (rec.stereo === null) {
+    rows.push({ g:'三级视', n:'立体视', v:'未查', norm: stN.txt, st:'na', src: stN.src, note:'未查。' });
+  } else {
+    let st = 'ok', note = '在正常范围内。';
+    const isChild = (rec.age !== null && rec.age < 7);
+    if (rec.stereo > 200) { st = 'bad'; note = '超过实用立体视标准 200 弧秒，立体视功能明显受损。'; }
+    else if (rec.stereo > stN.hi) { st = isChild ? 'mid' : 'mid'; note = '高于 ' + stN.hi + ' 弧秒，提示立体视功能轻度下降' + (isChild ? '（<7 岁儿童标准放宽）' : '') + '。'; }
+    else if (rec.stereo > 40 && !isChild) { st = 'ok'; note = '在 7 岁以上正常范围内（≤ ' + stN.hi + ' 弧秒），较理想值 40 弧秒略有差距，属可接受范围。'; }
+    rows.push({ g:'三级视', n:'立体视', v: fmtNum(rec.stereo, 0) + ' 弧秒', norm: stN.txt, st: st, src: stN.src, note: note });
+    if (rec.stereo > 200) findings.push({ name:'立体视功能明显受损', level:'major', basis:'立体视 ' + fmtNum(rec.stereo, 0) + ' 弧秒 > 200 弧秒（实用立体视标准）。' });
+    else if (rec.stereo > stN.hi) findings.push({ name:'立体视功能轻度下降', level:'minor', basis:'立体视 ' + fmtNum(rec.stereo, 0) + ' 弧秒高于 ' + stN.txt + '。' });
+  }
+
+  /* 不等像 */
+  if (rec.aniseikonia === null) {
+    rows.push({ g:'三级视', n:'不等像', v:'未查', norm:'> 0.75% 可致视疲劳；> 3 ~ 5% 影响融合、可能复视', st:'na', src:'临床标准', note:'未查。' });
+  } else {
+    let st = 'ok', note = '在可接受范围内。';
+    if (rec.aniseikonia > 3) { st = 'bad'; note = '超过 3%，可影响融合、可能引起复视，需考虑等像处理。'; }
+    else if (rec.aniseikonia > 0.75) { st = 'mid'; note = '超过 0.75%，可能引起视疲劳。'; }
+    rows.push({ g:'三级视', n:'不等像', v: fmtNum(rec.aniseikonia) + ' %', norm:'> 0.75% 可致视疲劳；> 3 ~ 5% 影响融合、可能复视', st: st, src:'临床标准', note: note });
+  }
+  return { rows: rows, findings: findings, flags: { worthBad: worthBad, stereo: rec.stereo, stereoHi: stN.hi } };
+}
+
+/* ============================== 9. 儿童远视储备 ============================== */
+function assessReserve(rec){
+  if (rec.age === null || rec.age < 3 || rec.age > 12) return null;
+  const row = HYPEROPIA_RESERVE.find(function(x){ return rec.age >= x.ageMin && rec.age <= x.ageMax; });
+  if (!row) return null;
+  const seOd = se(rec.odSph, rec.odCyl), seOs = se(rec.osSph, rec.osCyl);
+  const list = [seOd, seOs].filter(function(v){ return v !== null; });
+  if (!list.length) return null;
+  const worst = Math.min.apply(null, list);
+  const cycloplegic = rec.cyclo === 'yes';
+  return { age: rec.age, lo: row.lo, seWorst: worst, seOd: seOd, seOs: seOs,
+    cycloplegic: cycloplegic, insufficient: cycloplegic && worst < row.lo, src: RESERVE_SRC };
+}
+
+/* ============================== 10. 最小可分析数据集 ============================== */
+function minDataset(rec){
+  const missing = [];
+  if (rec.ampOd === null && rec.ampOs === null && rec.ampOu === null) missing.push('AMP 调节幅度');
+  if (rec.pra === null && rec.nra === null && rec.bcc === null) missing.push('PRA / NRA（或 BCC）');
+  const nearKnown = (rec.nearPhoriaVal !== null) || (rec.nearPhoriaDir === 'ortho');
+  if (!nearKnown) missing.push('近距隐斜');
+  return { ok: missing.length === 0, missing: missing };
+}
+
+/* ============================== 11. 计算层：关联分析与综合诊断 ============================== */
+const DX_ORDER = ['调节不足','集合不足（CI）','集合过度（CE）','散开不足（DI）','散开过度（DE）',
+  '调节过度','调节灵活度下降','调节滞后',
+  '同时视异常（提示抑制或异常视网膜对应）','立体视功能明显受损','立体视功能轻度下降','疑似集合不足'];
+
+function crossDiagnose(accom, verg, bino){
+  const map = {};
+  accom.findings.concat(verg.findings, bino.findings).forEach(function(f){
+    if (f.level !== 'none' && !map[f.name]) map[f.name] = f;
+  });
+  function has(k){ return !!map[k]; }
+  const dx = [];
+  const ampInsuff = has('调节不足'), ci = has('集合不足（CI）'), ce = has('集合过度（CE）');
+  const accExcess = has('调节过度'), facDrop = has('调节灵活度下降'), lag = has('调节滞后');
+  const used = {};
+
+  if (ampInsuff && ci) {
+    used['调节不足'] = true; used['集合不足（CI）'] = true;
+    dx.push({ name:'调节不足继发集合不足', kind:'原发', level:'major',
+      basis: map['调节不足'].basis + ' ' + map['集合不足（CI）'].basis + ' 调节性集合随调节下降而减少，二者构成「调节不足继发集合不足」的常见关联模式。' });
+  }
+  if (ci && accExcess) {
+    dx.push({ name:'集合不足可能继发调节过度', kind:'继发', level:'major',
+      basis:'集合不足时，为维持双眼单视常代偿性增加调节以刺激集合，从而可能出现调节过度（NRA ' + ' 偏低）。' });
+  }
+  if (accExcess && ce) {
+    dx.push({ name:'调节过度可能继发集合过度', kind:'继发', level:'major',
+      basis:'调节与调节性集合联动增强，调节过度可继发集合过度。' });
+  }
+
+  DX_ORDER.forEach(function(nm){
+    if (used[nm]) return;
+    const f = map[nm];
+    if (!f) return;
+    let kind = '原发';
+    if (nm === '调节灵活度下降' && (has('调节不足') || has('调节过度') || has('集合不足（CI）'))) kind = '继发';
+    if (nm === '调节滞后' && has('调节不足')) kind = '继发';
+    if (nm === '立体视功能轻度下降' || nm === '立体视功能明显受损') kind = '继发';
+    dx.push({ name: nm, kind: kind, level: f.level, basis: f.basis });
+  });
+
+  /* 排序：原发优先、显著优先，输出 1~3 条主要诊断 */
+  dx.sort(function(a, b){
+    const ra = (a.kind === '原发' ? 0 : 1) * 2 + (a.level === 'major' ? 0 : 1);
+    const rb = (b.kind === '原发' ? 0 : 1) * 2 + (b.level === 'major' ? 0 : 1);
+    return ra - rb;
+  });
+  return dx.slice(0, 3);
+}
+
+/* ============================== 12. 计算层：严重程度分级 ============================== */
+function gradeSeverity(accom, verg, bino, rec){
+  /* 按「指标」计数分级（与提示词口径一致）：显著偏离 / 轻度偏离 */
+  const rows = accom.rows.concat(verg.rows, bino.rows).filter(function(r){ return r.st !== 'na'; });
+  const badRows = rows.filter(function(r){ return r.st === 'bad'; });
+  const midRows = rows.filter(function(r){ return r.st === 'mid'; });
+  const stereoBad = (bino.flags.stereo !== null && bino.flags.stereo > 200);
+  const comp = !!rec.compensate;
+  const symCount = [rec.symNear, rec.symFar, rec.symHead, rec.symSkip, rec.symDipl, rec.symSleepy].filter(Boolean).length;
+  const symText = symCount ? '存在 ' + symCount + ' 项主观症状' + (rec.symDuration ? '（持续 ' + rec.symDuration + '）' : '') : '无明显主观症状';
+  const compText = comp ? '并存在明显代偿行为（闭一只眼阅读 / 频繁揉眼 / 歪头等）' : '未见明显代偿行为';
+  const badNames = badRows.map(function(r){ return r.n; }).join('、');
+  const midNames = midRows.map(function(r){ return r.n; }).join('、');
+
+  let level, basis;
+  if (badRows.length >= 2 && (comp || stereoBad)) {
+    level = '重度';
+    basis = '共 ' + badRows.length + ' 项指标显著偏离正常范围（' + badNames + '），' + compText +
+      (stereoBad ? '，且立体视 > 200 弧秒' : '') + '，' + symText + '。';
+  } else if (badRows.length >= 1 || midRows.length >= 2) {
+    level = '中度';
+    basis = (badRows.length ? badRows.length + ' 项指标显著偏离正常范围（' + badNames + '）' : '')
+      + (badRows.length && midRows.length ? '，另有 ' : '')
+      + (midRows.length ? midRows.length + ' 项指标轻度偏离（' + midNames + '）' : '')
+      + '，' + symText + '。';
+    if (badRows.length >= 2 && !comp && !stereoBad) {
+      basis += ' 由于尚未发现明显代偿行为、立体视未超过 200 弧秒，按中度处理（若出现闭一只眼阅读、频繁揉眼等代偿行为，可上调为重度）。';
+    }
+  } else if (midRows.length === 1) {
+    level = '轻度';
+    basis = '仅 ' + midNames + ' 单项指标轻度偏离正常范围（偏离幅度小于正常值范围的 30%），' + symText + '。';
+  } else {
+    level = '未见明显异常';
+    basis = '本次可评估的 ' + rows.length + ' 项指标均在正常参考范围内，' + symText + '。';
+  }
+  if (level === '轻度' && symCount >= 2) {
+    level = '中度';
+    basis += ' 但主观症状持续且影响日常用眼（症状项 ≥ 2），按中度处理。';
+  }
+  return { level: level, basis: basis, majorCount: badRows.length, minorCount: midRows.length,
+    badRows: badRows.map(function(r){ return r.n; }), midRows: midRows.map(function(r){ return r.n; }) };
+}
+
+/* ============================== 13. 计算层：训练方案库 ============================== */
+function trainingFlipCard(rec){
+  const facN = facilityNorm(rec.age);
+  const isChild = (rec.age !== null && rec.age <= 12);
+  const start = isChild ? '±1.50D' : '±2.00D';
+  return {
+    name:'翻转拍训练',
+    target:'调节灵活度下降（调焦速度慢）',
+    tools:'翻转拍 1 副（儿童先 ' + start + '，成人 ±2.00D）+ 20/30 或更小字号的视力卡 1 张',
+    steps:[
+      '把视力卡固定在眼前 40cm 处（可用支架或贴在墙上，眼睛正好看清）。',
+      '手持翻转拍，贴近眼前（不要碰到睫毛）。',
+      '按视力卡顺序读字：正镜面朝上读出第 1 个字母，翻转到负镜面朝上读出第 2 个字母，如此交替。',
+      '一正一负为 1 个周期。必须看清字母后再翻转，看不清时不要猜、不要跳过。'
+    ],
+    params:'先做单眼（遮盖另一只眼），每只眼计时 1 分钟记录完成周期数；再双眼同时做。每天 1~2 次，单眼和双眼各 5~10 分钟。',
+    advance:'单眼达到 ' + facN.mono + ' cpm、双眼达到 ' + facN.bi + ' cpm 后，可换用高一级度数（如 ±2.50D）继续训练。',
+    place:'家庭',
+    taboo:'恒定斜视者、明显双眼抑制者慎用（本单 Worth 4 灯：' + (rec.worthDist === '4' && rec.worthNear === '4' ? '正常，可使用' : '需先评估抑制情况') + '）。'
+  };
+}
+function trainingAlphabet(rec){
+  return {
+    name:'字母表训练',
+    target:'调节幅度不足（调焦范围不够）',
+    tools:'大字母表 1 张（贴于 3~5 米远处）+ 小字母表 1 张（手持，同字号）',
+    steps:[
+      '遮盖左眼，右眼注视小字母表第一行。',
+      '边读字母边把小字母表慢慢移近，直到字母开始变模糊。',
+      '把小字母表移远约 2.5cm 至重新清晰，保持这个距离。',
+      '交替注视远处大字母表和小字母表第二行，重复上述移近动作。',
+      '读第三行时，把小字母表重新移回 40cm 处，重复以上步骤。做完一行换另一只眼。'
+    ],
+    params:'每天 1~2 次，每次 10~15 分钟；先单眼、后双眼。',
+    advance:'能顺利读完 10 行且每行都清晰，可更换更小字号的字母表继续训练。',
+    place:'家庭',
+    taboo:'训练中出现持续复视、头痛加重应立即停止。'
+  };
+}
+function trainingBrock(rec, acaHigh){
+  return {
+    name:'聚散球训练',
+    target:'集合不足（两眼向内聚拢能力不够）',
+    tools:'聚散球 1 套（红黄绿三球，绳长约 1 米）',
+    steps:[
+      '把绳子一端固定在鼻尖前方，另一端向前拉直、与眼睛同高。',
+      '确认珠子位置：红球 30cm、黄球 60cm、绿球 90cm。',
+      '依次注视近—中—远每颗珠子，每颗珠子稳定观看约 5~10 秒。',
+      '注视红球时，应能看到黄球和绿球各分成两个，绳子在红球处交叉成「X」形。',
+      '保持 5 秒后移动到黄球，同样看到绳子在黄球处交叉，最后移到绿球。',
+      '若始终看不到「X」形或出现两个注视目标，说明超出当前能力，把球拉近一点再练。'
+    ],
+    params:'每次 3~5 分钟，每天 1~2 次，持续 4~8 周以上。',
+    advance:'能稳定地在三个球之间切换、且始终维持单一清晰注视目标后，可缩短球间距（如红球 25cm）并延长训练时间。',
+    place:'家庭',
+    taboo: acaHigh ? '本例 AC/A 偏高 / 存在内隐斜倾向，聚散球可能诱发内斜，建议由视光师现场评估后再决定是否在家进行。' : '隐性内斜、高 AC/A 者慎用，可能诱发内斜。'
+  };
+}
+function trainingFarNear(rec){
+  return {
+    name:'远近交替注视',
+    target:'调节反应速度与调节耐力（通用调节训练）',
+    tools:'近目标（笔尖或手指）+ 远目标（窗外 5 米以外的景物或字）',
+    steps:[
+      '坐姿端正，先注视近目标（笔尖）15~20 秒，看清笔尖细节。',
+      '抬头注视远处目标 15~20 秒，看清远处细节。',
+      '来回交替，为 1 组，共做 10~15 组。'
+    ],
+    params:'每天 2~3 次，可在工作 / 学习间隙穿插进行。',
+    advance:'能快速在远近目标间切换且都清晰时，可适当增加组数或缩短每个目标的注视时间。',
+    place:'家庭 / 店内均可',
+    taboo:'无特殊禁忌。'
+  };
+}
+
+/* ============================== 14. 计算层：报告文案生成 ============================== */
+const DISCLAIMER = '本报告由 AI 辅助生成，仅供参考，不能替代执业医师的临床诊断。请结合临床检查由专业视光师或眼科医师最终确认。如出现突发性视力下降、剧烈眼痛、视野缺损等症状，请立即就医。';
+
+function wearText(w){
+  return { none:'不戴镜', frame:'框架眼镜', contact:'隐形眼镜', orthoK:'角膜塑形镜' }[w] || '未记录';
+}
+function fitPct(v, lo, hi){
+  if (v === null || lo === null) return 0;
+  return Math.max(0, Math.min(100, ((v - lo) / ((hi || lo + 1) - lo)) * 100));
+}
+
+function buildupSection(rec, a){
+  const pro = [], lay = [], f = a.flags;
+  const items = [];
+  if (f.ampWorst !== null) items.push('AMP ' + fmtNum(f.ampWorst) + 'D（本年龄预期 ' + (f.ampN.val !== null ? '≥ ' + fmtNum(f.ampN.val) + 'D' : '—') + '）');
+  if (rec.nra !== null) items.push('NRA ' + signed(rec.nra) + 'D（正常 +1.75 ~ +2.50D）');
+  if (rec.pra !== null) items.push('PRA ' + signed(rec.pra) + 'D（正常约 −1.75 ~ −3.00D，绝对值越大越好）');
+  if (rec.bcc !== null) items.push('BCC ' + signed(rec.bcc) + 'D（正常 +0.25 ~ +0.75D）');
+  const facParts = [];
+  if (rec.facOd !== null) facParts.push('OD ' + fmtNum(rec.facOd) + 'cpm');
+  if (rec.facOs !== null) facParts.push('OS ' + fmtNum(rec.facOs) + 'cpm');
+  if (rec.facOu !== null) facParts.push('双眼 ' + fmtNum(rec.facOu) + 'cpm');
+  if (facParts.length) items.push('调节灵敏度 ' + facParts.join(' / ') + '（' + f.facN.txt + '）');
+  pro.push('数据对比：' + (items.length ? items.join('；') + '。' : '调节相关项目均未查。'));
+
+  if (f.ampDiff !== null && f.ampDiff >= 2) pro.push('判断结论：AMP 低于该年龄最小调节幅度预期值 ' + fmtNum(f.ampDiff) + 'D，符合调节不足的主要条件。');
+  else if (f.ampDiff !== null && f.ampDiff > 0) pro.push('判断结论：AMP 略低于年龄预期值 ' + fmtNum(f.ampDiff) + 'D（不足 2D），未达调节不足的主要条件，属轻度偏离。');
+  else if (f.ampWorst !== null && f.ampDiff !== null) pro.push('判断结论：AMP 达到并使用年龄预期值，调节幅度在正常范围内。');
+  if (f.nraLow) pro.push('NRA 低于 +1.75D，放松调节困难，符合调节过度的主要条件。');
+  if (f.praLow) pro.push('PRA 绝对值低于 1.75D，调节储备不足。');
+  if (f.bccHigh) pro.push('BCC 高于 +0.75D，存在调节滞后。');
+  if (f.facMonoLow || f.facBiLow) pro.push('调节灵敏度低于本年龄对应正常值（' + f.facN.txt + '）。');
+  if (a.findings.filter(function(x){ return x.level !== 'none'; }).length === 0 && items.length) {
+    pro.push('判断结论：可评估的调节功能项目均在正常参考范围内，未发现调节功能异常。');
+  }
+  if (f.ampInsuffMech !== undefined) { /* 预留 */ }
+  const mech = [];
+  if (f.ampDiff !== null && f.ampDiff >= 2) mech.push('调节幅度反映眼睛看清近处目标的储备能力，储备不足时近距离用眼需长时间动用接近极限的调节力，因此容易出现眼胀、视疲劳。');
+  if (f.facMonoLow || f.facBiLow) mech.push('调节灵敏度反映调节反应的响应速度，速度偏慢时由远看近需要更长时间才能对焦清楚。');
+  if (f.nraLow) mech.push('NRA 偏低说明放松调节困难，睫状肌长期处于紧张状态，看近时难以「松下来」。');
+  if (f.bccHigh) mech.push('BCC 高于 +0.75D 说明实际调节反应落后于调节需求（欠调），长期欠调会增加视网膜离焦量。');
+  if (mech.length) pro.push('机制解释：' + mech.join(' '));
+
+  const layOrder = [];
+  if (f.ampDiff !== null && f.ampDiff >= 2) layOrder.push('眼睛的「变焦范围」不够大——就像相机镜头拉不到那么近，看近处时比较吃力。');
+  if (f.facMonoLow || f.facBiLow) layOrder.push('「变焦速度」也偏慢：从看远处切换到看近处，要过一会儿才能变清楚。');
+  if (f.nraLow) layOrder.push('眼睛的「对焦马达」一直绷着，该放松的时候松不下来，所以看久了会累、会酸。');
+  if (f.bccHigh) layOrder.push('每次对焦都差一点点，画面正好落在「快要模糊」的边上，所以容易疲劳。');
+  if (!layOrder.length) layOrder.push(items.length ? '这次检查里，眼睛的变焦功能是够用的，看远看近都能对得上焦。' : '这次没有做到调节功能的检查，暂时看不出变焦能力好不好。');
+  layOrder.forEach(function(t){ lay.push(t); });
+  return { pro: pro, lay: lay };
+}
+
+function vergSection(rec, v){
+  const pro = [], lay = [], f = v.flags;
+  const items = [];
+  if (f.dDist !== null) items.push('远距隐斜 ' + phoriaText(f.dDist) + '（正常 ' + NORM.distExo.txt + '）');
+  if (f.dNear !== null) items.push('近距隐斜 ' + phoriaText(f.dNear) + '（正常 ' + NORM.nearExo.txt + '）');
+  if (rec.aca !== null) items.push('AC/A ' + fmtNum(rec.aca, 1) + ' Δ/D（正常 3 ~ 5 Δ/D）');
+  if (rec.npc !== null) items.push('NPC ' + fmtNum(rec.npc) + 'cm（正常破裂点 < 6cm）');
+  if (rec.nearBI || rec.nearBO) items.push('近距融合 BI ' + rangeText(f.nearBI) + '、BO ' + rangeText(f.nearBO));
+  if (rec.distBI || rec.distBO) items.push('远距融合 BI ' + rangeText(f.distBI) + '、BO ' + rangeText(f.distBO));
+  if (rec.vergFac !== null) items.push('聚散灵敏度 ' + fmtNum(rec.vergFac) + 'cpm（≥ 9cpm）');
+  pro.push('数据对比：' + (items.length ? items.join('；') + '。' : '聚散相关项目均未查。'));
+
+  const fs = v.findings.filter(function(x){ return x.level !== 'none'; });
+  if (fs.length) pro.push('判断结论：' + fs.map(function(x){ return x.name + '——' + x.basis; }).join(' '));
+  else if (items.length) pro.push('判断结论：可评估的聚散功能项目均在正常参考范围内，未发现明显聚散异常。');
+
+  const mech = [];
+  if (f.exoGap !== null && f.exoGap > 4) mech.push('看近时双眼需要向内聚拢，而这一动作由调节带动。近距外隐斜比远距大 4Δ 以上、同时集合近点后退或正相对集合储备（BO 破裂点）不足，是集合不足的典型组合。');
+  if (f.acaHigh) mech.push('AC/A 偏高意味着每增加 1D 调节会带来更多集合，看近时更容易出现内隐斜倾向。');
+  if (f.acaLow) mech.push('AC/A 偏低意味着调节带动的集合偏少，看近时需要额外动用融合储备。');
+  if (mech.length) pro.push('机制解释：' + mech.join(' '));
+
+  const CI = fs.some(function(x){ return x.name.indexOf('集合不足') >= 0; });
+  const CE = fs.some(function(x){ return x.name.indexOf('集合过度') >= 0; });
+  const DI = fs.some(function(x){ return x.name.indexOf('散开不足') >= 0; });
+  const DE = fs.some(function(x){ return x.name.indexOf('散开过度') >= 0; });
+  if (CI) lay.push('两只眼睛「向内聚拢」的能力不够。看近处时，眼睛需要同时向内转才能同时对准同一个目标，但向内转的幅度和持久度都不够，所以看久了会眼胀、头痛，甚至看串行。');
+  if (CE) lay.push('两只眼睛向内聚拢「过头」了，看近时一直绷得比较紧，因此容易酸胀、看一会儿就想休息。');
+  if (DI) lay.push('看远处时，两只眼睛需要的「分开」能力不够，看远久了可能会出现重影或疲劳。');
+  if (DE) lay.push('看远处时两只眼睛分得「太开」了，为了不出现重影，眼睛要额外花力气把视线拉回来，因此容易累。');
+  if (!lay.length) lay.push(items.length ? '两只眼睛的「配合」是正常的：看近会一起向内聚拢，看远会一起放松开。' : '这次没有做到双眼配合的检查，暂时看不出聚散功能好不好。');
+  if (f.npcAbn) lay.push('「对焦最近点」比正常远了一些（实测 ' + fmtNum(rec.npc) + 'cm），说明近距离用眼时要用更大的力气才能让两眼对准。');
+  return { pro: pro, lay: lay };
+}
+
+function binoSection(rec, b){
+  const pro = [], lay = [], f = b.flags;
+  const items = [];
+  const wTextMap = { '4':'4 灯（正常）', '2':'2 灯（一眼抑制）', '3':'3 灯（一眼抑制）', '5':'5 灯（复视/异常对应）', 'na':'未查' };
+  items.push('Worth 4 灯：远距 ' + wTextMap[rec.worthDist] + '、近距 ' + wTextMap[rec.worthNear]);
+  if (rec.stereo !== null) items.push('立体视 ' + fmtNum(rec.stereo, 0) + ' 弧秒（' + stereoNorm(rec.age).txt + '）');
+  if (rec.aniseikonia !== null) items.push('不等像 ' + fmtNum(rec.aniseikonia) + ' %');
+  pro.push('数据对比：' + items.join('；') + '。');
+
+  const fs = b.findings.filter(function(x){ return x.level !== 'none'; });
+  if (fs.length) pro.push('判断结论：' + fs.map(function(x){ return x.name + '——' + x.basis; }).join(' '));
+  else pro.push('判断结论：Worth 4 灯与立体视未见异常，三级视功能基本完好。');
+  if (f.worthBad) pro.push('机制解释：Worth 4 灯未看到 4 个灯，说明双眼影像未能在大脑中被同时接收（抑制），或双眼对应关系异常，这会直接影响融合与立体视的建立。');
+  else if (rec.stereo !== null && rec.stereo > f.stereoHi) pro.push('机制解释：立体视依赖双眼视差的精确对合，调节或聚散异常时双眼对合精度下降，立体视阈值随之升高。');
+
+  if (f.worthBad) lay.push('检查时两只眼睛没有同时「一起工作」——一只眼的画面被大脑暂时「关掉」了，或者两只眼睛的对位不够整齐。这种情况需要专业评估后处理。');
+  if (rec.stereo !== null && rec.stereo > 200) lay.push('判断距离远近的立体感明显变差了，做精细动作（如穿针、接球）会受影响。');
+  else if (rec.stereo !== null && rec.stereo > f.stereoHi) lay.push('立体感比同年龄的正常水平差一些，属于轻度下降，日常使用基本不受影响，但精细度会打点折扣。');
+  if (!lay.length) lay.push('两只眼睛配合得不错，立体感也在正常范围。');
+  return { pro: pro, lay: lay };
+}
+
+/* ============================== 15. 计算层：建议方案 ============================== */
+function buildPlan(rec, accom, verg, bino, reserve, dx, severity){
+  const names = dx.map(function(d){ return d.name; });
+  const has = function(k){ return names.join('|').indexOf(k) >= 0; };
+  const ampInsuff = (accom.flags.ampDiff !== null && accom.flags.ampDiff >= 2);
+  const facDrop = (accom.flags.facMonoLow || accom.flags.facBiLow);
+  const lag = accom.flags.bccHigh, accExcess = accom.flags.nraLow;
+  const CI = has('集合不足'), CE = has('集合过度'), DI = has('散开不足'), DE = has('散开过度');
+  const isChild = (rec.age !== null && rec.age <= 12);
+
+  /* --- 6.1 配镜建议 --- */
+  const glasses = [];
+  glasses.push('配镜前复核处方：球镜 / 柱镜 / 轴位与瞳距（本次 PD：' + (rec.pd !== null ? fmtNum(rec.pd, 1) + ' mm' : '未查') + '），并确认最佳矫正视力已达标再定单。');
+  if (ampInsuff || lag) glasses.push('可考虑验配具有抗疲劳设计的镜片（下加光 +0.50 ~ +0.75D），在近距离用眼场景补偿调节不足、降低调节负担；具体下加量需结合 PRA、BCC 实测值由视光师确认。');
+  if (accExcess) glasses.push('本例 NRA 偏低（提示调节过度），远用近视度数不宜过矫，建议按最佳矫正视力的最低负镜度给足。');
+  if (CI) glasses.push('存在集合不足倾向时，远用处方应充分矫正（近视尤其不宜欠矫），以减少调节性集合的额外负担；不建议在未做专业评估的情况下自行添加下加光或棱镜。');
+  if (CE || verg.flags.acaHigh) glasses.push('本例 AC/A 偏高 / 存在集合过度倾向，若需下加光应谨慎（可能进一步增加调节性集合），建议由视光师现场评估后再定。');
+  if (rec.aniseikonia !== null && rec.aniseikonia > 3) glasses.push('不等像 ' + fmtNum(rec.aniseikonia) + '% 超过 3%，已可能影响融合，可考虑等像设计的镜片或改配隐形眼镜以减小像差。');
+  else if (rec.aniseikonia !== null && rec.aniseikonia > 0.75) glasses.push('不等像 ' + fmtNum(rec.aniseikonia) + '% 超过 0.75%，可能引起视疲劳，配镜时注意两眼屈光参差不要进一步拉大。');
+  if (reserve && reserve.insufficient) glasses.push('儿童近视风险提示：散瞳后等效球镜低于该年龄远视储备下限（' + fmtNum(reserve.lo) + 'D），建议结合近视管理方案（如具备防控设计的功能性镜片）并由视光师跟踪眼轴变化。');
+  if (isChild) glasses.push('儿童建议每 3~6 个月复查屈光度，镜架需保证光学中心对准瞳孔、镜眼距稳定，避免因镜架下滑影响矫正效果。');
+
+  /* --- 6.2 视觉训练方案 --- */
+  const training = [];
+  const noConstantStrab = (rec.history !== 'strab' && rec.history !== 'both');
+  if (ampInsuff || facDrop || lag || accExcess) {
+    const p1 = { phase:'第一阶段（第 1 ~ 4 周）', focus:'以调节训练为主：提高调节幅度与调焦速度', items:[] };
+    if (ampInsuff || lag) p1.items.push(trainingAlphabet(rec));
+    if (facDrop || ampInsuff) p1.items.push(trainingFlipCard(rec));
+    p1.items.push(trainingFarNear(rec));
+    training.push(p1);
+  }
+  if (CI) {
+    const phase2 = training.length
+      ? { phase:'第二阶段（第 5 ~ 8 周）', focus:'调节 + 聚散联合训练：在调节能力改善的基础上增加集合训练', items:[] }
+      : { phase:'第一阶段（第 1 ~ 4 周）', focus:'以集合功能训练为主', items:[trainingFarNear(rec)] };
+    phase2.items.push(trainingBrock(rec, verg.flags.acaHigh || (verg.flags.dNear !== null && verg.flags.dNear > 0)));
+    training.push(phase2);
+  }
+  if (training.length) {
+    training.push({ phase:'第三阶段（第 9 ~ 12 周）', focus:'巩固与维持', items:[{
+      name:'巩固训练', target:'维持已改善的指标', tools:'沿用前期训练工具（翻转拍 / 字母表 / 聚散球）',
+      steps:['把训练频率降到每天 1 次，保持既有强度。','每次训练记录完成周期数或清晰度，观察波动。','复查确认各项指标进入正常范围后，改为每周 2~3 次维持。'],
+      params:'每天 1 次，持续至第 12 周复查；进入维持期后每周 2~3 次。', advance:'连续两次复查指标均在正常范围，即可转入维持阶段。',
+      place:'家庭', taboo:'训练中出现持续复视、症状加重、视力下降，应立即中止并复诊。' }] });
+  }
+  if (!training.length) {
+    training.push({ phase:'暂不需个性化训练', focus:'本次分析未确认需要视觉训练的功能性异常', items:[{
+      name:'维持性用眼管理', target:'保持现有视功能水平', tools:'不需要专用工具',
+      steps:['保持每日户外活动与正确的阅读姿势。','出现眼胀、头痛、看串行等症状时及时复查。'],
+      params:'长期，随复查调整。', advance:'复查指标保持在正常范围内即可。', place:'家庭', taboo:'无。'}] });
+  }
+
+  /* --- 6.3 用眼习惯指导 --- */
+  const habits = [];
+  habits.push('遵循 20-20-20 法则：每近距离用眼 20 分钟，抬头远眺 6 米以外 20 秒以上。');
+  habits.push('阅读距离保持在 33 ~ 40cm，不要在躺着、走动或晃动的车上看书看手机。');
+  habits.push('保证充足照明，避免在光线过暗或屏幕与背景亮度反差过大的环境中用眼。');
+  habits.push('每天保证 2 小时以上户外活动时间（儿童尤其重要），自然光有助于延缓近视进展。');
+  if (rec.continuous === 'yes' || (rec.nearHours !== null && rec.nearHours >= 6)) {
+    habits.push('本次主诉提示连续近距离用眼时间偏长（每天约 ' + (rec.nearHours !== null ? fmtNum(rec.nearHours, 1) + ' 小时' : '较长') + '），建议用定时器强制每 20 分钟休息一次。');
+  }
+  if (rec.symSkip) habits.push('出现跳行、串行时，可用手指或卡片辅助定位逐行阅读，减轻双眼协同负担。');
+  if (rec.symSleepy) habits.push('阅读易犯困多与调节/集合负担过重相关，不宜靠延长用眼时间硬撑，先休息再做。');
+  if (isChild) habits.push('儿童读写姿势：眼离书本一尺、胸离桌沿一拳、手离笔尖一寸（一尺一拳一寸）。');
+
+  /* --- 6.4 复查计划 --- */
+  const review = [];
+  let weeks = 8;
+  if (severity.level === '重度') weeks = 4;
+  else if (severity.level === '中度') weeks = 4;
+  else if (severity.level === '轻度') weeks = 10;
+  if (training.length && training[0].phase.indexOf('第 1') >= 0 && severity.level !== '未见明显异常') {
+    review.push('第 4 周复查：调节功能（AMP、PRA、调节灵敏度）与主观症状变化。');
+    review.push('第 8 周复查：调节 + 聚散功能联合复查（含 NPC、融合范围、聚散灵敏度）。');
+    review.push('第 12 周全面复查：评估是否达到正常范围并进入维持阶段。');
+    weeks = 4;
+  } else {
+    review.push('建议 ' + weeks + ' 周后复查调节与聚散功能，评估指标变化与症状改善情况。');
+    review.push('复查时请携带本次报告，便于逐项对比。');
+  }
+  if (reserve && reserve.insufficient) {
+    review.push('近视风险跟踪：建议 3 ~ 6 个月复查屈光度，并同步记录眼轴长度变化。');
+    if (weeks < 12) weeks = 12;
+  }
+  if (bino.flags.worthBad) review.push('Worth 4 灯异常：建议尽快到店或转诊做双眼视功能专项评估，确认抑制范围与类型后再决定训练方案。');
+  return { glasses: glasses, training: training, habits: habits, review: review, nextDate: addDays(todayStr(), weeks * 7) };
+}
+
+/* ============================== 16. 计算层：完整报告 ============================== */
+function buildReport(rec){
+  const warnings = validateRecord(rec);
+  const rf = redFlagHits(rec);
+  const accom = assessAccommodation(rec);
+  const verg = assessVergence(rec);
+  const bino = assessBinocular(rec);
+  const reserve = assessReserve(rec);
+  const md = minDataset(rec);
+  const stop = rf.length > 0;
+  const dx = (md.ok && !stop) ? crossDiagnose(accom, verg, bino) : [];
+  const severity = stop
+    ? { level:'暂停分析', basis:'本次录入命中红旗征，按规范终止视功能分析流程，优先转诊排查器质性病变。', majorCount:0, minorCount:0 }
+    : (md.ok ? gradeSeverity(accom, verg, bino, rec)
+      : { level:'数据不足', basis:'最小可分析数据集不完整，本次仅输出数据概览与复查建议，不对异常维度下诊断结论。', majorCount:0, minorCount:0 });
+  if (!stop && reserve && reserve.insufficient && (severity.level === '未见明显异常' || severity.level === '轻度')) {
+    severity.basis += ' 另需注意：散瞳后等效球镜低于该年龄远视储备下限（详见 3.4 节），属于近视风险因素，建议按复查计划持续跟踪。';
+  }
+  const plan = buildPlan(rec, accom, verg, bino, reserve, dx, severity);
+
+  const overview = [
+    { title:'调节功能', rows: accom.rows },
+    { title:'聚散功能', rows: verg.rows },
+    { title:'三级视功能', rows: bino.rows }
+  ];
+  const naList = [];
+  overview.forEach(function(g){ g.rows.forEach(function(r){ if (r.st === 'na') naList.push(g.title.replace('功能','') + '：' + r.n); }); });
+
+  const sections = [];
+  sections.push({ key:'accom', title:'3.1 调节功能', findings: accom.findings.filter(function(f){ return f.level !== 'none'; }), text: buildupSection(rec, accom) });
+  sections.push({ key:'verg',  title:'3.2 聚散功能', findings: verg.findings.filter(function(f){ return f.level !== 'none'; }), text: vergSection(rec, verg) });
+  sections.push({ key:'bino',  title:'3.3 三级视功能', findings: bino.findings.filter(function(f){ return f.level !== 'none'; }), text: binoSection(rec, bino) });
+
+  const limits = [];
+  if (stop) limits.push('因命中红旗征，本次未进入视功能分析流程，报告不包含视功能诊断结论。');
+  if (!md.ok) limits.push('最小可分析数据集不完整，缺少：' + md.missing.join('、') + '。按规范不对相应维度下达诊断结论。');
+  if (naList.length) limits.push('以下项目未查，对应维度无法评估：' + naList.join('；') + '。');
+  if (rec.age !== null && rec.age <= 12 && rec.cyclo !== 'yes') limits.push('本次未做睫状肌麻痹（散瞳）验光，远视储备判定不适用，报告中不含近视风险储备结论。');
+  if (rec.cyclo === 'yes' && rec.fogging === 'no') limits.push('已散瞳但未充分雾视，屈光数据可能存在残余调节影响。');
+  if (warnings.length) limits.push('存在需核实的数据：' + warnings.join(' '));
+  if (!limits.length) limits.push('本次检查项目较完整，未发现明显数据缺口。');
+  limits.push('本报告结论基于所录入的数据，未录入的项目默认「未查」，不对未查项目做任何推断。');
+  if (reserve && !reserve.cycloplegic && reserve.age <= 12) limits.push('远视储备仅在睫状肌麻痹后判读，本例为未散瞳数据，不作储备判定。');
+
+  const symList = [];
+  if (rec.symNear) symList.push('看近眼胀眼酸');
+  if (rec.symFar) symList.push('看近后看远模糊');
+  if (rec.symHead) symList.push('头痛');
+  if (rec.symSkip) symList.push('阅读跳行串行');
+  if (rec.symDipl) symList.push('重影');
+  if (rec.symSleepy) symList.push('易犯困注意力不集中');
+
+  return {
+    recId: rec.id, name: rec.name, generatedAt: new Date().toISOString(),
+    createdAt: rec.createdAt,
+    redFlag: { hit: stop, items: rf },
+    summary: { age: rec.age, gender: rec.gender, wear: wearText(rec.wear), rx: rxText(rec),
+      va: '裸眼 OD ' + (rec.odUcva || '未查') + ' / OS ' + (rec.osUcva || '未查') + '；矫正 OD ' + (rec.odBcva || '未查') + ' / OS ' + (rec.osBcva || '未查'),
+      symptoms: symList.length ? symList.join('、') : '未记录明显症状',
+      symDuration: rec.symDuration, nearHours: rec.nearHours, note: rec.note,
+      cyclo: rec.cyclo === 'yes' ? '已散瞳' : rec.cyclo === 'no' ? '未散瞳' : '散瞳情况未查' },
+    overview: overview, sections: sections, dx: dx, severity: severity, plan: plan,
+    reserve: reserve, limits: limits, warnings: warnings, md: md,
+    disclaimer: DISCLAIMER, nextReview: rec.nextReview, suggestedReview: plan.nextDate
+  };
+}
+
+function summarize(rec){
+  const rf = redFlagHits(rec);
+  const md = minDataset(rec);
+  let dx = [], sev = '—';
+  try {
+    const a = assessAccommodation(rec), v = assessVergence(rec), b = assessBinocular(rec);
+    if (rf.length) { sev = '建议转诊'; }
+    else if (!md.ok) { sev = '数据不足'; }
+    else { dx = crossDiagnose(a, v, b); sev = gradeSeverity(a, v, b, rec).level; }
+  } catch (e) { sev = '—'; }
+  return { severity: sev, dx: dx.map(function(d){ return d.name; }), redFlag: rf.length > 0, at: new Date().toISOString() };
+}
+
+/* ============================== 17. 渲染层 ============================== */
+const VIEW_META = {
+  today:   { t:'今天要处理', d:'复查到期与逾期的顾客，一条条处理掉' },
+  entry:   { t:'检查录入',   d:'按问诊清单逐项录入，缺失项留空（默认「未查」）' },
+  report:  { t:'分析报告',   d:'专业分析 + 通俗解读双栏，可直接读给顾客听' },
+  archive: { t:'顾客档案',   d:'全部检查记录，数据保存在本机浏览器' }
+};
+
+function switchView(view){
+  if (!VIEW_META[view]) view = 'today';
+  state.view = view;
+  ['today','entry','report','archive'].forEach(function(v){
+    const el = $('#view-' + v);
+    if (el) el.classList.toggle('hidden', v !== view);
+  });
+  $$('#nav button').forEach(function(b){ b.classList.toggle('on', b.getAttribute('data-view') === view); });
+  $$('#tabbar button').forEach(function(b){ b.classList.toggle('on', b.getAttribute('data-view') === view); });
+  $('#viewTitle').textContent = VIEW_META[view].t;
+  $('#viewDesc').textContent = VIEW_META[view].d;
+  window.scrollTo(0, 0);
+}
+
+function statusPill(st){
+  if (st === 'ok')  return '<span class="pill p-ok">在正常范围内</span>';
+  if (st === 'mid') return '<span class="pill p-mid">轻度偏离</span>';
+  if (st === 'bad') return '<span class="pill p-bad">明显偏离</span>';
+  return '<span class="pill p-gray">未查</span>';
+}
+function sevPill(level){
+  if (level === '重度') return '<span class="pill p-bad">重度</span>';
+  if (level === '中度') return '<span class="pill p-mid">中度</span>';
+  if (level === '轻度') return '<span class="pill p-info">轻度</span>';
+  if (level === '未见明显异常') return '<span class="pill p-ok">未见明显异常</span>';
+  if (level === '建议转诊') return '<span class="pill p-bad">建议转诊</span>';
+  return '<span class="pill p-gray">' + esc(level) + '</span>';
+}
+
+function pendingTasks(){
+  const out = [];
+  state.records.forEach(function(r){
+    if (!r.nextReview) return;
+    const d = diffDays(r.nextReview);
+    if (d === null) return;
+    out.push({ rec: r, d: d });
+  });
+  out.sort(function(a, b){ return a.d - b.d; });
+  return out;
+}
+
+function renderNav(){
+  const tasks = pendingTasks();
+  const urgent = tasks.filter(function(t){ return t.d <= 0; }).length;
+  ['#navBadge', '#tabBadge'].forEach(function(sel){
+    const el = $(sel);
+    if (!el) return;
+    el.textContent = urgent;
+    el.classList.toggle('hidden', urgent === 0);
+  });
+}
+
+function renderToday(){
+  const tasks = pendingTasks();
+  const over = tasks.filter(function(t){ return t.d < 0; });
+  const today = tasks.filter(function(t){ return t.d === 0; });
+  const week = tasks.filter(function(t){ return t.d > 0 && t.d <= 7; });
+
+  $('#stOverdue').textContent = over.length;
+  $('#stToday').textContent = today.length;
+  $('#stWeek').textContent = week.length;
+  $('#stTotal').textContent = state.records.length;
+
+  const card = $('#todayCard');
+  card.classList.toggle('hasover', over.length > 0);
+  $('#todayTag').textContent = over.length ? '有 ' + over.length + ' 条已逾期' : (today.length ? '今天到期 ' + today.length + ' 条' : '暂无到期项');
+
+  const list = over.concat(today);
+  if (!list.length) {
+    $('#todayList').innerHTML = '<div class="empty">今天没有到期的复查任务。' +
+      (state.records.some(function(r){ return !r.nextReview; }) ? '<br>有 ' + state.records.filter(function(r){ return !r.nextReview; }).length + ' 条档案还没设置复查日期，可在档案里补上。' : '') +
+      '</div>';
+  } else {
+    $('#todayList').innerHTML = list.map(function(t){
+      const r = t.rec;
+      const cls = t.d < 0 ? 'over' : 'soon';
+      const tag = t.d < 0 ? '<span class="pill p-bad">逾期 ' + Math.abs(t.d) + ' 天</span>' : '<span class="pill p-mid">今天到期</span>';
+      const dxs = (r.analysis && r.analysis.dx && r.analysis.dx.length) ? r.analysis.dx.slice(0, 2).join('、') : (r.analysis ? r.analysis.severity : '—');
+      return '' +
+        '<div class="todo ' + cls + '">' +
+          '<div class="who">' +
+            '<div class="nm">' + esc(r.name || '未命名') + ' ' + tag + '</div>' +
+            '<div class="meta">' + (r.age !== null ? r.age + ' 岁 · ' : '') + esc(r.gender) +
+              ' ｜ 上次检查 ' + esc(r.createdAt || '—') + ' ｜ 应复查 ' + esc(r.nextReview || '—') + '</div>' +
+            '<div class="meta">结论：' + esc(dxs) + '</div>' +
+          '</div>' +
+          '<div class="acts">' +
+            '<button class="btn sm pri" data-act="open" data-id="' + r.id + '">打开档案</button>' +
+            '<button class="btn sm" data-act="done" data-id="' + r.id + '">已复查（顺延 4 周）</button>' +
+            '<button class="btn sm" data-act="redo" data-id="' + r.id + '">录入新检查</button>' +
+          '</div>' +
+        '</div>';
+    }).join('');
+  }
+
+  if (!week.length) {
+    $('#weekList').innerHTML = '<div class="empty">未来 7 天内没有待复查安排。</div>';
+  } else {
+    $('#weekList').innerHTML = week.map(function(t){
+      const r = t.rec;
+      return '' +
+        '<div class="todo">' +
+          '<div class="who">' +
+            '<div class="nm">' + esc(r.name || '未命名') + ' <span class="pill p-info">' + t.d + ' 天后</span></div>' +
+            '<div class="meta">应复查 ' + esc(r.nextReview) + (r.age !== null ? ' ｜ ' + r.age + ' 岁' : '') + '</div>' +
+          '</div>' +
+          '<div class="acts"><button class="btn sm" data-act="open" data-id="' + r.id + '">打开档案</button></div>' +
+        '</div>';
+    }).join('');
+  }
+}
+
+function recordBrief(r){
+  if (r.analysis && r.analysis.dx && r.analysis.dx.length) return r.analysis.dx.slice(0, 2).join('、');
+  if (r.analysis && r.analysis.redFlag) return '命中红旗征，建议转诊';
+  if (r.analysis) return r.analysis.severity;
+  return '—';
+}
+
+function renderArchive(){
+  const kw = (state.archQuery || '').trim().toLowerCase();
+  const f = state.archFilter;
+  let list = state.records.slice().sort(function(a, b){
+    return (b.createdAt || '').localeCompare(a.createdAt || '');
+  });
+
+  if (f === 'overdue') list = list.filter(function(r){ const d = diffDays(r.nextReview); return d !== null && d < 0; });
+  else if (f === 'due') list = list.filter(function(r){ const d = diffDays(r.nextReview); return d === 0; });
+  else if (f === 'week') list = list.filter(function(r){ const d = diffDays(r.nextReview); return d !== null && d >= 0 && d <= 7; });
+  else if (f === 'redo') list = list.filter(function(r){ return r.analysis && r.analysis.redFlag; });
+  else if (f === 'major') list = list.filter(function(r){ return r.analysis && (r.analysis.severity === '中度' || r.analysis.severity === '重度'); });
+
+  if (kw) {
+    list = list.filter(function(r){
+      const hay = [r.name, r.note, recordBrief(r), r.symDuration, r.symWorst].join(' ').toLowerCase();
+      return hay.indexOf(kw) >= 0;
+    });
+  }
+
+  const notice = $('#archNotice');
+  if (notice) {
+    const real = state.records.filter(function(r){ return !r.sample; }).length;
+    if (real >= 30) {
+      notice.innerHTML = '<div class="alertbox warn" style="margin-bottom:14px">数据已积累 ' + real +
+        ' 条，建议点上方「导出 JSON 备份」保存一份快照。本工作台的数据只保存在本机浏览器中，清理浏览器数据会导致档案丢失。</div>';
+    } else {
+      notice.innerHTML = '';
+    }
+  }
+
+  if (!list.length) {
+    $('#archList').innerHTML = '<div class="empty">' + (state.records.length ? '没有符合条件的档案。' : '还没有档案，点右上角「新建检查」开始第一份记录。') + '</div>';
+    return;
+  }
+  $('#archList').innerHTML = list.map(function(r){
+    const d = diffDays(r.nextReview);
+    let dTag = '';
+    if (r.nextReview) {
+      if (d < 0) dTag = '<span class="pill p-bad">逾期 ' + Math.abs(d) + ' 天</span>';
+      else if (d === 0) dTag = '<span class="pill p-mid">今天复查</span>';
+      else if (d <= 7) dTag = '<span class="pill p-info">' + d + ' 天后复查</span>';
+      else dTag = '<span class="pill p-gray">' + esc(r.nextReview) + ' 复查</span>';
+    } else dTag = '<span class="pill p-gray">未设复查日期</span>';
+    const initial = (r.name || '?').trim().charAt(0);
+    return '' +
+      '<div class="arch-item">' +
+        '<div class="ic">' + esc(initial) + '</div>' +
+        '<div class="who">' +
+          '<div class="nm">' + esc(r.name || '未命名') + sevPill(r.analysis ? r.analysis.severity : '—') + dTag + '</div>' +
+          '<div class="meta">' + (r.age !== null ? r.age + ' 岁 · ' : '') + esc(r.gender) + ' · ' + esc(wearText(r.wear)) + ' ｜ 检查日期 ' + esc(r.createdAt || '—') + '</div>' +
+          '<div class="meta">' + esc(recordBrief(r)) + '</div>' +
+        '</div>' +
+        '<div class="acts">' +
+          '<button class="btn sm pri" data-act="open" data-id="' + r.id + '">查看报告</button>' +
+          '<button class="btn sm" data-act="edit" data-id="' + r.id + '">修改</button>' +
+          '<button class="btn sm" data-act="review" data-id="' + r.id + '">设复查日</button>' +
+          '<button class="btn sm dan" data-act="del" data-id="' + r.id + '">删除</button>' +
+        '</div>' +
+      '</div>';
+  }).join('');
+}
+
+function overviewTable(group){
+  return '<div class="sec-title">' + esc(group.title) + '</div>' +
+    '<div class="tbl-wrap"><table class="tbl"><thead><tr>' +
+    '<th style="width:26%">检查项目</th><th style="width:22%">本次结果</th><th style="width:28%">正常参考范围</th><th style="width:12%">判断</th><th style="width:12%">依据来源</th>' +
+    '</tr></thead><tbody>' +
+    group.rows.map(function(r){
+      return '<tr><td>' + esc(r.n) + '</td><td class="num">' + esc(r.v) + '</td><td class="src">' + esc(r.norm) + '</td>' +
+        '<td>' + statusPill(r.st) + '</td><td class="src">' + esc(r.src) + '</td></tr>';
+    }).join('') +
+    '</tbody></table></div>';
+}
+function duoBlock(section){
+  const pro = section.text.pro.map(function(p){ return '<p style="margin:0 0 7px">' + esc(p) + '</p>'; }).join('');
+  const lay = section.text.lay.map(function(p){ return '<p style="margin:0 0 7px">' + esc(p) + '</p>'; }).join('');
+  const fnd = section.findings.length
+    ? '<ul>' + section.findings.map(function(f){ return '<li>' + esc(f.name) + '（' + esc(f.basis) + '）</li>'; }).join('') + '</ul>'
+    : '<p style="margin:0">本维度未发现偏离正常范围的指标。</p>';
+  return '<h5>' + esc(section.title) + '</h5>' +
+    '<div class="duo">' +
+      '<div class="pane pro"><div class="lb">专业分析（店员参考）</div>' + pro +
+        '<div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--line)">' +
+        '<div style="font-size:11px;font-weight:700;color:var(--primary-d);margin-bottom:4px">指标判定</div>' + fnd + '</div>' +
+      '</div>' +
+      '<div class="pane lay"><div class="lb">通俗解读（向顾客解释）</div>' + lay + '</div>' +
+    '</div>';
+}
+function trainingBlock(item){
+  return '<div class="training">' +
+    '<div class="th"><span class="nm">' + esc(item.name) + '</span><span class="pill p-info">针对：' + esc(item.target) + '</span>' +
+    '<span class="pill p-gray">' + esc(item.place) + '</span></div>' +
+    '<dl>' +
+      '<dt>所需工具</dt><dd>' + esc(item.tools) + '</dd>' +
+      '<dt>具体操作步骤</dt><dd><ol>' + item.steps.map(function(s){ return '<li>' + esc(s) + '</li>'; }).join('') + '</ol></dd>' +
+      '<dt>训练参数</dt><dd>' + esc(item.params) + '</dd>' +
+      '<dt>进阶标准</dt><dd>' + esc(item.advance) + '</dd>' +
+      '<dt>禁忌与中止</dt><dd>' + esc(item.taboo) + '</dd>' +
+    '</dl></div>';
+}
+
+function reportHTML(rep){
+  if (!rep) {
+    return '<div class="card flat"><div class="empty">还没有生成报告。<br>点右上角「新建检查」或左侧「检查录入」，填好数据后点击「开始自动分析并生成报告」。</div></div>';
+  }
+  const s = rep.summary;
+  let h = '<div class="report" id="reportOut">';
+  h += '<h2>视功能检查分析报告</h2>';
+  h += '<div class="meta">顾客：' + esc(rep.name || '未命名') + ' ｜ 检查日期：' + esc(rep.createdAt || '—') +
+       ' ｜ 报告生成：' + esc(new Date(rep.generatedAt).toLocaleString('zh-CN')) + ' ｜ 数据存储：本机浏览器</div>';
+
+  if (rep.redFlag.hit) {
+    h += '<div class="alertbox red"><b>【转诊提示】</b>您提供的检查数据中，' +
+      esc(rep.redFlag.items.join('；')) + ' 提示可能存在器质性病变风险。视功能分析不适用于此情况，建议顾客尽快到眼科就诊，排除眼部疾病后再进行视功能评估。</div>';
+  }
+
+  /* 一、顾客信息摘要 */
+  h += '<h4>一、顾客信息摘要</h4>';
+  h += '<div class="tbl-wrap"><table class="tbl"><tbody>' +
+    '<tr><th style="width:22%">年龄 / 性别</th><td>' + (s.age !== null ? s.age + ' 岁' : '未查') + ' · ' + esc(s.gender) + '</td></tr>' +
+    '<tr><th>戴镜情况</th><td>' + esc(s.wear) + ' ｜ ' + esc(s.cyclo) + '</td></tr>' +
+    '<tr><th>屈光处方</th><td class="num">' + esc(s.rx) + '</td></tr>' +
+    '<tr><th>视力</th><td class="num">' + esc(s.va) + '</td></tr>' +
+    '<tr><th>主诉症状</th><td>' + esc(s.symptoms) + (s.symDuration ? '（持续 ' + esc(s.symDuration) + '）' : '') + '</td></tr>' +
+    '<tr><th>用眼习惯</th><td>每天近距离用眼约 ' + (s.nearHours !== null ? fmtNum(s.nearHours, 1) + ' 小时' : '未记录') + '</td></tr>' +
+    (s.note ? '<tr><th>备注</th><td>' + esc(s.note) + '</td></tr>' : '') +
+    '</tbody></table></div>';
+
+  /* 二、检查数据总览 */
+  h += '<h4>二、检查数据总览</h4>';
+  rep.overview.forEach(function(g){ h += overviewTable(g); });
+
+  /* 三、分析结果 */
+  h += '<h4>三、分析结果</h4>';
+  rep.sections.forEach(function(sec){ h += duoBlock(sec); });
+
+  if (rep.reserve) {
+    const r = rep.reserve;
+    h += '<h5>3.4 儿童近视风险提示（远视储备）</h5>';
+    const proTxt = r.cycloplegic
+      ? '散瞳后等效球镜：OD ' + (r.seOd === null ? '未查' : fmtNum(r.seOd)) + 'D，OS ' + (r.seOs === null ? '未查' : fmtNum(r.seOs)) + 'D，取较低值 ' + fmtNum(r.seWorst) + 'D；该年龄远视储备下限为 +' + fmtNum(r.lo) + 'D。'
+      : '本例未行睫状肌麻痹（散瞳）验光，按规范不对远视储备作出判定。仅作提示：该年龄散瞳后远视储备下限为 +' + fmtNum(r.lo) + 'D。';
+    const layTxt = r.cycloplegic
+      ? (r.insufficient
+        ? '孩子眼睛的「抗近视缓冲垫」比同龄人薄了一些。现在还不算近视，但缓冲不足，需要 3~6 个月复查一次，重点关注用眼习惯与户外时间。'
+        : '孩子眼睛还有足够的「抗近视缓冲垫」，目前没有明显的近视风险信号，保持良好用眼习惯即可。')
+      : '这次没有散瞳验光，暂时无法判断孩子的「抗近视缓冲垫」够不够。如果担心，可以在医生指导下做散瞳验光后再评估。';
+    h += '<div class="duo">' +
+      '<div class="pane pro"><div class="lb">专业分析（店员参考）</div><p style="margin:0">' + esc(proTxt) + '</p>' +
+      '<p style="margin:7px 0 0;font-size:11.5px;color:var(--ink3)">来源：' + esc(r.src) + '</p></div>' +
+      '<div class="pane lay"><div class="lb">通俗解读（向顾客解释）</div><p style="margin:0">' + esc(layTxt) + '</p></div></div>';
+  }
+
+  /* 四、综合诊断结论 */
+  h += '<h4>四、综合诊断结论</h4>';
+  if (rep.redFlag.hit) {
+    h += '<div class="alertbox warn">已命中红旗征，本次不输出视功能诊断结论，请先完成眼科排查。</div>';
+  } else if (!rep.md.ok) {
+    h += '<div class="alertbox warn">最小可分析数据集不完整（缺少：' + esc(rep.md.missing.join('、')) + '），本次不输出诊断结论，仅提供数据概览与复查建议。</div>';
+  } else if (!rep.dx.length) {
+    h += '<div class="alertbox info">综合调节、聚散与三级视功能分析，本次未发现偏离正常范围的功能性异常。</div>';
+  } else {
+    h += '<div class="tbl-wrap"><table class="tbl"><thead><tr><th style="width:6%">序</th><th style="width:32%">诊断</th><th style="width:12%">性质</th><th>主要依据</th></tr></thead><tbody>' +
+      rep.dx.map(function(d, i){
+        return '<tr><td>' + (i + 1) + '</td><td>' + esc(d.name) + '</td><td>' + esc(d.kind) + '</td><td class="src">' + esc(d.basis) + '</td></tr>';
+      }).join('') + '</tbody></table></div>';
+  }
+
+  /* 五、严重程度 */
+  h += '<h4>五、严重程度评估</h4>';
+  h += '<div class="alertbox ' + (rep.severity.level === '重度' ? 'red' : rep.severity.level === '中度' ? 'warn' : 'info') + '">' +
+    '<b>' + esc(rep.severity.level) + '</b> ｜ ' + esc(rep.severity.basis) + '</div>';
+
+  /* 六、建议方案 */
+  h += '<h4>六、建议方案</h4>';
+  h += '<h5>6.1 配镜建议</h5><ul style="margin:0 0 6px;padding-left:18px;font-size:13px">' + rep.plan.glasses.map(function(t){ return '<li>' + esc(t) + '</li>'; }).join('') + '</ul>';
+  h += '<h5>6.2 视觉训练方案</h5>';
+  rep.plan.training.forEach(function(ph){
+    h += '<div class="alertbox info" style="margin:8px 0"><b>' + esc(ph.phase) + '</b> ｜ ' + esc(ph.focus) + '</div>';
+    ph.items.forEach(function(it){ h += trainingBlock(it); });
+  });
+  h += '<h5>6.3 用眼习惯指导</h5><ul style="margin:0 0 6px;padding-left:18px;font-size:13px">' + rep.plan.habits.map(function(t){ return '<li>' + esc(t) + '</li>'; }).join('') + '</ul>';
+  h += '<h5>6.4 复查计划</h5><ul style="margin:0 0 6px;padding-left:18px;font-size:13px">' +
+    rep.plan.review.map(function(t){ return '<li>' + esc(t) + '</li>'; }).join('') +
+    '<li>建议下次复查日期：<b>' + esc(rep.suggestedReview) + '</b>（可在档案中调整）</li></ul>';
+
+  /* 七、局限性与声明 */
+  h += '<h4>七、数据不足与局限性声明</h4>';
+  h += '<ul style="margin:0;padding-left:18px;font-size:12.5px;color:var(--ink2)">' + rep.limits.map(function(t){ return '<li>' + esc(t) + '</li>'; }).join('') + '</ul>';
+  h += '<h4>八、免责声明</h4>';
+  h += '<div class="disc">' + esc(rep.disclaimer) + '</div>';
+  h += '</div>';
+  return h;
+}
+
+function renderReport(rep){
+  $('#reportBody').innerHTML = reportHTML(rep);
+  $('#reportStamp').textContent = rep ? ('生成于 ' + new Date(rep.generatedAt).toLocaleString('zh-CN')) : '尚未生成';
+}
+
+function reportText(rep){
+  if (!rep) return '';
+  const L = [];
+  const s = rep.summary;
+  L.push('视功能检查分析报告');
+  L.push('顾客：' + (rep.name || '未命名') + '　检查日期：' + (rep.createdAt || '—'));
+  L.push('年龄：' + (s.age !== null ? s.age + ' 岁' : '未查') + '　性别：' + s.gender + '　戴镜：' + s.wear + '　' + s.cyclo);
+  L.push('屈光处方：' + s.rx);
+  L.push('视力：' + s.va);
+  L.push('主诉：' + s.symptoms + (s.symDuration ? '（持续 ' + s.symDuration + '）' : ''));
+  L.push('');
+  if (rep.redFlag.hit) {
+    L.push('【转诊提示】检查数据中 ' + rep.redFlag.items.join('；') + ' 提示可能存在器质性病变风险，视功能分析不适用，建议尽快到眼科就诊。');
+    L.push('');
+  }
+  L.push('二、检查数据总览');
+  rep.overview.forEach(function(g){
+    L.push('【' + g.title + '】');
+    g.rows.forEach(function(r){
+      const stTxt = r.st === 'ok' ? '在正常范围内' : r.st === 'mid' ? '轻度偏离' : r.st === 'bad' ? '明显偏离' : '未查';
+      L.push('  · ' + r.n + '：' + r.v + '（正常参考：' + r.norm + '）→ ' + stTxt);
+    });
+  });
+  L.push('');
+  L.push('三、分析结果');
+  rep.sections.forEach(function(sec){
+    L.push(sec.title);
+    L.push('【专业分析】' + sec.text.pro.join(' '));
+    L.push('【通俗解读】' + sec.text.lay.join(' '));
+  });
+  if (rep.reserve) {
+    L.push('3.4 儿童近视风险提示（远视储备）');
+    L.push('【专业分析】散瞳后等效球镜较低值 ' + fmtNum(rep.reserve.seWorst) + 'D，该年龄下限 +' + fmtNum(rep.reserve.lo) + 'D' + (rep.reserve.cycloplegic ? (rep.reserve.insufficient ? '，低于下限，提示远视储备不足。' : '，未低于下限。') : '（本次未散瞳，不作判定）') );
+  }
+  L.push('');
+  L.push('四、综合诊断结论');
+  if (rep.redFlag.hit) L.push('  已命中红旗征，本次不输出视功能诊断结论。');
+  else if (!rep.md.ok) L.push('  数据不足，缺少：' + rep.md.missing.join('、') + '，不输出诊断结论。');
+  else if (!rep.dx.length) L.push('  未发现偏离正常范围的功能性异常。');
+  else rep.dx.forEach(function(d, i){ L.push('  ' + (i + 1) + '. ' + d.name + '（' + d.kind + '）—— ' + d.basis); });
+  L.push('');
+  L.push('五、严重程度评估：' + rep.severity.level);
+  L.push('  ' + rep.severity.basis);
+  L.push('');
+  L.push('六、建议方案');
+  L.push('6.1 配镜建议');
+  rep.plan.glasses.forEach(function(t){ L.push('  · ' + t); });
+  L.push('6.2 视觉训练方案');
+  rep.plan.training.forEach(function(ph){
+    L.push('  ' + ph.phase + '｜' + ph.focus);
+    ph.items.forEach(function(it){
+      L.push('   ▸ ' + it.name + '（针对：' + it.target + '）');
+      L.push('     工具：' + it.tools);
+      L.push('     步骤：' + it.steps.join(' '));
+      L.push('     参数：' + it.params);
+      L.push('     进阶：' + it.advance);
+      L.push('     地点：' + it.place + '　禁忌：' + it.taboo);
+    });
+  });
+  L.push('6.3 用眼习惯指导');
+  rep.plan.habits.forEach(function(t){ L.push('  · ' + t); });
+  L.push('6.4 复查计划');
+  rep.plan.review.forEach(function(t){ L.push('  · ' + t); });
+  L.push('  建议下次复查：' + rep.suggestedReview);
+  L.push('');
+  L.push('七、数据不足与局限性声明');
+  rep.limits.forEach(function(t){ L.push('  · ' + t); });
+  L.push('');
+  L.push('八、免责声明');
+  L.push('  ' + rep.disclaimer);
+  return L.join('\n');
+}
+
+function refreshAll(){
+  renderEntryBar();
+  renderNav();
+  renderToday();
+  renderArchive();
+  renderReport(state.report);
+}
+function refreshLists(){
+  renderEntryBar();
+  renderNav();
+  renderToday();
+  renderArchive();
+}
+/* 录入模式提示条：明确区分「新建」与「修改」，避免静默覆盖已有档案 */
+function renderEntryBar(){
+  const tag = $('#entryModeTag'), hint = $('#entryModeHint');
+  if (!tag || !hint) return;
+  const rec = state.currentId ? findRecord(state.currentId) : null;
+  if (rec) {
+    tag.className = 'pill p-info';
+    tag.textContent = '正在修改：' + (rec.name || '未命名');
+    hint.textContent = '提交后将覆盖这条档案（检查日期保持 ' + (rec.createdAt || '—') + '）';
+  } else {
+    tag.className = 'pill p-gray';
+    tag.textContent = '新建检查';
+    hint.textContent = '提交后将新增一条档案';
+  }
+}
+/* 统一的「打开录入」入口：isNew=true 时清空表单开新档 */
+function showEntry(isNew){
+  if (isNew) {
+    state.currentId = null;
+    fillForm(blankRecord());
+  }
+  switchView('entry');
+  renderEntryBar();
+}
+
+/* ============================== 17.5 滚轮数值选择器（类 iOS 闹钟） ============================== */
+const PK_ITEM_H = 44;
+const PK_NA = { v: null, t: '未查' };
+
+function pkRange(min, max, step, digits, sign){
+  const out = [];
+  const n = Math.round((max - min) / step);
+  for (let i = 0; i <= n; i++) {
+    const v = Math.round((min + i * step) * 1000) / 1000;
+    out.push({ v: v, t: (sign && v > 0 ? '+' : '') + v.toFixed(digits) });
+  }
+  return out;
+}
+function pkList(arr, digits, sign){
+  return arr.map(function(v){ return { v: v, t: (sign && v > 0 ? '+' : '') + v.toFixed(digits) }; });
+}
+
+const PICKER_CFG = {
+  age:            { title:'年龄（周岁）', unit:'岁',   values: pkRange(1, 99, 1, 0, false) },
+  odSph:          { title:'OD 球镜',      unit:'D',    values: pkRange(-20, 20, 0.25, 2, true) },
+  osSph:          { title:'OS 球镜',      unit:'D',    values: pkRange(-20, 20, 0.25, 2, true) },
+  odCyl:          { title:'OD 柱镜',      unit:'D',    values: pkRange(-8, 0, 0.25, 2, true) },
+  osCyl:          { title:'OS 柱镜',      unit:'D',    values: pkRange(-8, 0, 0.25, 2, true) },
+  odAx:           { title:'OD 轴位',      unit:'°',    values: pkRange(0, 180, 1, 0, false) },
+  osAx:           { title:'OS 轴位',      unit:'°',    values: pkRange(0, 180, 1, 0, false) },
+  nearHours:      { title:'每天近距离用眼时长', unit:'小时', values: pkRange(0, 18, 0.5, 1, false) },
+  pd:             { title:'瞳孔距离 PD',  unit:'mm',   values: pkRange(40, 80, 0.5, 1, false) },
+  ampOd:          { title:'AMP OD',       unit:'D',    values: pkRange(0, 20, 0.25, 2, false) },
+  ampOs:          { title:'AMP OS',       unit:'D',    values: pkRange(0, 20, 0.25, 2, false) },
+  ampOu:          { title:'AMP 双眼',     unit:'D',    values: pkRange(0, 20, 0.25, 2, false) },
+  nra:            { title:'NRA 负相对调节', unit:'D',  values: pkRange(0, 5, 0.25, 2, true) },
+  pra:            { title:'PRA 正相对调节（填负值）', unit:'D', values: pkRange(-5, 0, 0.25, 2, false) },
+  bcc:            { title:'BCC / MEM 调节反应', unit:'D', values: pkRange(-2, 2, 0.25, 2, true) },
+  facOd:          { title:'调节灵敏度 OD',   unit:'cpm', values: pkRange(0, 30, 0.5, 1, false) },
+  facOs:          { title:'调节灵敏度 OS',   unit:'cpm', values: pkRange(0, 30, 0.5, 1, false) },
+  facOu:          { title:'调节灵敏度 双眼', unit:'cpm', values: pkRange(0, 30, 0.5, 1, false) },
+  distPhoriaVal:  { title:'远距隐斜',     unit:'Δ',    values: pkRange(0, 30, 0.5, 1, false) },
+  nearPhoriaVal:  { title:'近距隐斜',     unit:'Δ',    values: pkRange(0, 30, 0.5, 1, false) },
+  aca:            { title:'AC/A 比率',    unit:'Δ/D',  values: pkRange(0, 12, 0.1, 1, false) },
+  npc:            { title:'NPC 集合近点（破裂点）', unit:'cm', values: pkRange(0, 30, 0.5, 1, false) },
+  vergFac:        { title:'聚散灵敏度',   unit:'cpm',  values: pkRange(0, 30, 0.5, 1, false) },
+  stereo:         { title:'立体视',       unit:'弧秒', values: pkList([20,25,30,35,40,45,50,60,70,80,100,120,140,160,200,240,300,400,600,800,1200,2000,3000], 0, false) },
+  aniseikonia:    { title:'不等像',       unit:'%',    values: pkRange(0, 10, 0.25, 2, false) }
+};
+const FUSION_CFG = {
+  distBI: { title:'远距 BI 融合范围', unit:'Δ', labels:['模糊','破裂','恢复'], allowX:[true, false, false] },
+  distBO: { title:'远距 BO 融合范围', unit:'Δ', labels:['模糊','破裂','恢复'], allowX:[false, false, false] },
+  nearBI: { title:'近距 BI 融合范围', unit:'Δ', labels:['模糊','破裂','恢复'], allowX:[false, false, false] },
+  nearBO: { title:'近距 BO 融合范围', unit:'Δ', labels:['模糊','破裂','恢复'], allowX:[false, false, false] }
+};
+
+const pkState = { name: null, cols: [] };
+
+function pkHighlight(col){
+  Array.prototype.forEach.call(col._list.children, function(c, i){ c.classList.toggle('on', i === col._idx); });
+}
+function pkSelect(col, idx, doScroll){
+  col._idx = Math.max(0, Math.min(col._values.length - 1, idx));
+  pkHighlight(col);
+  if (doScroll) {
+    const top = col._idx * PK_ITEM_H;
+    try { col._list.scrollTo({ top: top, behavior: 'smooth' }); }
+    catch (e) { try { col._list.scrollTop = top; } catch (e2) {} }
+  }
+}
+function pkBuildCol(values, curIdx, label){
+  const col = document.createElement('div');
+  col.className = 'pk-col';
+  if (label) {
+    const lb = document.createElement('div');
+    lb.className = 'lb';
+    lb.textContent = label;
+    col.appendChild(lb);
+  }
+  const band = document.createElement('div');
+  band.className = 'pk-band';
+  col.appendChild(band);
+  const list = document.createElement('div');
+  list.className = 'pk-list';
+  values.forEach(function(v, i){
+    const it = document.createElement('div');
+    it.className = 'pk-item' + (i === curIdx ? ' on' : '');
+    it.textContent = v.t;
+    it.addEventListener('click', function(){ pkSelect(col, i, true); });
+    list.appendChild(it);
+  });
+  col.appendChild(list);
+  col._list = list; col._values = values; col._idx = curIdx;
+  let t = null;
+  list.addEventListener('scroll', function(){
+    if (t) clearTimeout(t);
+    t = setTimeout(function(){
+      const idx = Math.round(list.scrollTop / PK_ITEM_H);
+      col._idx = Math.max(0, Math.min(values.length - 1, idx));
+      pkHighlight(col);
+    }, 90);
+  });
+  return col;
+}
+function pkColValue(col){
+  const v = col._values[col._idx];
+  return (v === undefined ? null : v.v);
+}
+function openPicker(name){
+  const el = $('#entryForm [name="' + name + '"]');
+  if (!el) return;
+  const host = $('#pkCols');
+  host.innerHTML = '';
+  pkState.name = name; pkState.cols = [];
+
+  if (FUSION_CFG[name]) {
+    const cfg = FUSION_CFG[name];
+    $('#pkTitle').textContent = cfg.title;
+    $('#pkUnit').textContent = cfg.unit;
+    const cur = parseRange(el.value) || { blur: null, brk: null, rec: null };
+    const curArr = [cur.blur, cur.brk, cur.rec];
+    const tokens = String(el.value || '').split(/[\/／,，、\s]+/).filter(function(s){ return s !== ''; });
+    cfg.labels.forEach(function(lb, i){
+      const vals = [];
+      if (cfg.allowX[i]) vals.push({ v: 'X', t: 'X' });
+      vals.push({ v: null, t: '—' });
+      for (let v = 0; v <= 40; v++) vals.push({ v: v, t: String(v) });
+      let idx = vals.findIndex(function(x){ return x.v === null; });
+      if (cfg.allowX[i] && tokens[i] && /^x$/i.test(tokens[i])) idx = 0;
+      else if (curArr[i] !== null) {
+        const k = vals.findIndex(function(x){ return x.v === curArr[i]; });
+        if (k >= 0) idx = k;
+      }
+      const col = pkBuildCol(vals, idx, lb);
+      host.appendChild(col);
+      pkState.cols.push(col);
+    });
+  } else {
+    const cfg = PICKER_CFG[name];
+    if (!cfg) return;
+    const vals = [PK_NA].concat(cfg.values);
+    const cur = num(el.value);
+    let idx = 0;
+    if (cur !== null) {
+      const k = vals.findIndex(function(x){ return x.v !== null && Math.abs(x.v - cur) < 1e-6; });
+      if (k >= 0) idx = k;
+    }
+    $('#pkTitle').textContent = cfg.title;
+    $('#pkUnit').textContent = cfg.unit;
+    const col = pkBuildCol(vals, idx, '');
+    host.appendChild(col);
+    pkState.cols.push(col);
+  }
+  $('#picker').classList.add('show');
+  document.body.classList.add('pk-open');
+  if (window.requestAnimationFrame) {
+    window.requestAnimationFrame(function(){
+      pkState.cols.forEach(function(col){
+        try { col._list.scrollTop = col._idx * PK_ITEM_H; } catch (e) {}
+      });
+    });
+  }
+}
+function pkConfirm(){
+  const el = pkState.name ? $('#entryForm [name="' + pkState.name + '"]') : null;
+  if (el) {
+    const items = pkState.cols.map(function(col){ return col._values[col._idx]; });
+    if (items.length === 1) {
+      el.value = (!items[0] || items[0].v === null) ? '' : items[0].t;
+    } else {
+      const allNa = items.every(function(it){ return !it || it.v === null; });
+      el.value = allNa ? '' : items.map(function(it){ return (!it || it.v === null) ? 'X' : it.t; }).join('/');
+    }
+    try { el.dispatchEvent(new Event('change', { bubbles: true })); } catch (e) {}
+  }
+  pkClose();
+}
+function pkClose(){
+  $('#picker').classList.remove('show');
+  document.body.classList.remove('pk-open');
+  pkState.name = null;
+}
+function markPickable(el){
+  el.setAttribute('readonly', 'readonly');
+  el.setAttribute('inputmode', 'none');
+  /* 改为 text：type=number 会按 HTML 规范把带「+」的值（如 +2.25）净化成空字符串 */
+  el.setAttribute('type', 'text');
+  el.setAttribute('title', '点击用滚轮选择');
+  el.classList.add('pickable');
+  let wrap = el.closest('.unit');
+  if (!wrap) {
+    wrap = document.createElement('div');
+    wrap.className = 'unit';
+    el.parentNode.insertBefore(wrap, el);
+    wrap.appendChild(el);
+  }
+  wrap.classList.add('pickwrap');
+  if (!wrap.querySelector('.cv')) {
+    const cv = document.createElement('span');
+    cv.className = 'cv';
+    wrap.appendChild(cv);
+  }
+}
+function setupPickers(){
+  Object.keys(PICKER_CFG).forEach(function(k){
+    const el = $('#entryForm [name="' + k + '"]');
+    if (!el) return;
+    markPickable(el);
+    el.setAttribute('placeholder', '点击选择');
+    el.addEventListener('click', function(){ openPicker(k); });
+  });
+  Object.keys(FUSION_CFG).forEach(function(k){
+    const el = $('#entryForm [name="' + k + '"]');
+    if (!el) return;
+    markPickable(el);
+    el.setAttribute('placeholder', '点击选择');
+    el.addEventListener('click', function(){ openPicker(k); });
+  });
+  $('#pkOk').addEventListener('click', pkConfirm);
+  $('#pkClear').addEventListener('click', function(){
+    const el = pkState.name ? $('#entryForm [name="' + pkState.name + '"]') : null;
+    if (el) {
+      el.value = '';
+      try { el.dispatchEvent(new Event('change', { bubbles: true })); } catch (e) {}
+    }
+    pkClose();
+    toast('已标记为未查');
+  });
+  $('#picker').addEventListener('click', function(e){ if (e.target === $('#picker')) pkClose(); });
+  document.addEventListener('keydown', function(e){
+    if (e.key === 'Escape' && $('#picker').classList.contains('show')) pkClose();
+  });
+}
+
+/* ============================== 18. 表单读写 ============================== */
+
+const FORM_FIELDS = ['name','age','gender','wear','odSph','odCyl','odAx','odUcva','osSph','osCyl','osAx','osUcva',
+  'odBcva','osBcva','cyclo','fogging','symDuration','symWorst','nearHours','continuous','history','surgery','training',
+  'pd','nextReview','ampMethod','ampOd','ampOs','ampOu','nra','pra','bcc','facOd','facOs','facOu',
+  'distPhoriaVal','distPhoriaDir','nearPhoriaVal','nearPhoriaDir','aca','acaMethod','npc','vergFac',
+  'distBI','distBO','nearBI','nearBO','worthDist','worthNear','stereo','aniseikonia','motility','note'];
+const NUM_FIELDS = ['age','odSph','odCyl','odAx','osSph','osCyl','osAx','nearHours','pd','ampOd','ampOs','ampOu',
+  'nra','pra','bcc','facOd','facOs','facOu','distPhoriaVal','nearPhoriaVal','aca','npc','vergFac','stereo','aniseikonia'];
+const CHK_MAP = { sym_near:'symNear', sym_far:'symFar', sym_head:'symHead', sym_skip:'symSkip', sym_dipl:'symDipl', sym_sleepy:'symSleepy', compensate:'compensate' };
+
+function fillForm(rec){
+  const r = rec || blankRecord();
+  FORM_FIELDS.forEach(function(k){
+    const el = $('#entryForm [name="' + k + '"]');
+    if (!el) return;
+    const v = r[k];
+    el.value = (v === null || v === undefined) ? '' : v;
+  });
+  Object.keys(CHK_MAP).forEach(function(nm){
+    const el = $('#entryForm [name="' + nm + '"]');
+    if (el) el.checked = !!r[CHK_MAP[nm]];
+  });
+  const labels = (r.redFlags || []);
+  $$('#entryForm input[name^="rf_"]').forEach(function(c){
+    c.checked = labels.indexOf(c.getAttribute('data-lb')) >= 0;
+  });
+  $$('#entryForm .chk').forEach(function(l){
+    const inp = $('input', l);
+    l.classList.toggle('on', !!(inp && inp.checked));
+  });
+}
+function collectForm(){
+  const fd = new FormData($('#entryForm'));
+  const r = blankRecord();
+  r.id = state.currentId || uid();
+  FORM_FIELDS.forEach(function(k){
+    if (NUM_FIELDS.indexOf(k) >= 0) r[k] = num(fd.get(k));
+    else if (k === 'nextReview') r[k] = (fd.get(k) || '').toString();
+    else r[k] = (fd.get(k) || '').toString().trim();
+  });
+  Object.keys(CHK_MAP).forEach(function(nm){ r[CHK_MAP[nm]] = !!fd.get(nm); });
+  r.redFlags = $$('#entryForm input[name^="rf_"]').filter(function(c){ return c.checked; })
+    .map(function(c){ return c.getAttribute('data-lb') || c.name; });
+  r.compensate = !!fd.get('compensate');
+  const old = state.currentId ? findRecord(state.currentId) : null;
+  r.createdAt = old ? old.createdAt : todayStr();
+  r.sample = old ? !!old.sample : false;
+  r.analysis = null;
+  return r;
+}
+function validateForm(){
+  const problems = [];
+  const nameEl = $('#entryForm [name="name"]');
+  const ageEl = $('#entryForm [name="age"]');
+  $$('#entryForm .field').forEach(function(f){ f.classList.remove('invalid'); });
+  if (!nameEl.value.trim()) { problems.push('请填写顾客姓名 / 编号'); nameEl.closest('.field').classList.add('invalid'); }
+  if (!ageEl.value.trim()) { problems.push('请填写年龄（正常参考值需要按年龄适配）'); ageEl.closest('.field').classList.add('invalid'); }
+  if (problems.length) {
+    problems.forEach(function(p){ toast(p); });
+    const first = $('#entryForm .field.invalid input');
+    if (first) first.focus();
+    return false;
+  }
+  return true;
+}
+function fillDemoForm(){
+  state.currentId = null;
+  fillForm(Object.assign(blankRecord(), {
+    name: '演示顾客', age: 12, gender: '男', wear: 'frame',
+    odSph: -1.5, osSph: -1.25, odBcva: '1.0', osBcva: '1.0', cyclo: 'no', fogging: 'yes',
+    symNear: true, symHead: true, symDuration: '约 3 个月', symWorst: '阅读 20 分钟后', nearHours: 6, continuous: 'yes',
+    ampMethod: 'pushup', ampOd: 5.0, ampOs: 5.5, ampOu: 5.0,
+    nra: 2.25, pra: -1.25, bcc: 1.00, facOd: 6, facOs: 7, facOu: 5,
+    distPhoriaVal: 2, distPhoriaDir: 'exo', nearPhoriaVal: 8, nearPhoriaDir: 'exo',
+    aca: 4.5, acaMethod: 'calc', npc: 10,
+    distBI: 'X/7/4', distBO: '9/19/10', nearBI: '6/10/6', nearBO: '12/16/8',
+    worthDist: '4', worthNear: '4', stereo: 80,
+    nextReview: addDays(todayStr(), 28)
+  }));
+  renderEntryBar();
+  toast('已填入演示数据（对应提示词 Few-shot 案例）');
+}
+
+/* ============================== 19. 数据备份 ============================== */
+function downloadBlob(blob, filename){
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click();
+  setTimeout(function(){ document.body.removeChild(a); URL.revokeObjectURL(url); }, 200);
+}
+function exportJSON(){
+  const data = {
+    app: 'vision-analysis-workbench', version: APP_VERSION,
+    exportedAt: new Date().toISOString(), count: state.records.length,
+    records: state.records
+  };
+  downloadBlob(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }), '视功能档案备份-' + todayStr() + '.json');
+  toast('已导出 ' + state.records.length + ' 条档案');
+}
+function importJSON(file){
+  const reader = new FileReader();
+  reader.onload = function(){
+    try {
+      const parsed = JSON.parse(reader.result);
+      const list = Array.isArray(parsed) ? parsed : (parsed.records || []);
+      if (!Array.isArray(list) || !list.length) throw new Error('empty');
+      let added = 0, updated = 0;
+      list.forEach(function(item){
+        const rec = Object.assign(blankRecord(), item);
+        if (!rec.id) rec.id = uid();
+        const idx = state.records.findIndex(function(r){ return r.id === rec.id; });
+        if (idx >= 0) { state.records[idx] = rec; updated++; }
+        else { state.records.push(rec); added++; }
+      });
+      state.records.forEach(function(r){ if (!r.analysis) r.analysis = summarize(r); });
+      saveRecords();
+      refreshAll();
+      toast('导入完成：新增 ' + added + ' 条，覆盖 ' + updated + ' 条');
+    } catch (e) {
+      toast('导入失败：文件格式不正确');
+    }
+  };
+  reader.readAsText(file);
+}
+function clearSampleData(){
+  const n = state.records.filter(function(r){ return r.sample; }).length;
+  if (!n) { toast('当前没有示例数据'); return; }
+  confirmBox('清空示例数据', '将删除 <b>' + n + '</b> 条示例数据，你自己录入的档案不受影响。确定继续吗？', function(){
+    state.records = state.records.filter(function(r){ return !r.sample; });
+    saveRecords(); refreshAll(); toast('已清空 ' + n + ' 条示例数据');
+  });
+}
+function clearAllData(){
+  confirmBox('清空全部数据', '将删除全部 <b>' + state.records.length + '</b> 条档案，且<b>无法恢复</b>。建议先「导出 JSON 备份」。确定继续吗？', function(){
+    state.records = [];
+    storage.write(LS_RECORDS, []);
+    storage.write(LS_META, { seeded: true, clearedAt: new Date().toISOString() });
+    state.report = null; state.currentId = null;
+    refreshAll(); toast('已清空全部档案');
+  });
+}
+
+/* ============================== 20. 弹窗输入 ============================== */
+function promptDateBox(title, hint, curVal, onOk){
+  $('#modalTitle').textContent = title;
+  $('#modalText').innerHTML = hint + '<br><input type="date" id="modalInput" value="' + esc(curVal || '') +
+    '" style="margin-top:10px;width:100%;min-height:42px;padding:8px 11px;border:1px solid var(--line);border-radius:10px;font-size:16px;background:#FCFDFD">';
+  const m = $('#modal');
+  m.classList.add('show');
+  const ok = $('#modalOk'), cancel = $('#modalCancel');
+  function close(){ m.classList.remove('show'); ok.removeEventListener('click', yes); cancel.removeEventListener('click', no); }
+  function yes(){ const v = $('#modalInput').value; close(); onOk(v); }
+  function no(){ close(); }
+  ok.addEventListener('click', yes);
+  cancel.addEventListener('click', no);
+}
+
+/* ============================== 21. 事件绑定 ============================== */
+function bindEvents(){
+  /* 导航 */
+  $$('#nav button, #tabbar button').forEach(function(b){
+    b.addEventListener('click', function(){
+      const v = b.getAttribute('data-view');
+      /* 从其他视图进入「检查录入」时，始终开启一条新档案，避免静默覆盖上一位顾客的档案 */
+      if (v === 'entry' && state.view !== 'entry') { showEntry(true); return; }
+      switchView(v);
+    });
+  });
+  $('#btnNewTop').addEventListener('click', function(){ showEntry(true); });
+  $('#btnForceNew').addEventListener('click', function(){ showEntry(true); toast('已清空表单，开始新建检查'); });
+
+  /* 录入表单 */
+  $('#entryForm').addEventListener('submit', function(e){
+    e.preventDefault();
+    if (!validateForm()) return;
+    const rec = collectForm();
+    const report = buildReport(rec);
+    if (!rec.nextReview) rec.nextReview = report.suggestedReview;
+    state.currentId = rec.id;
+    rec.analysis = summarize(rec);
+    upsertRecord(rec);
+    state.report = report;
+    switchView('report');
+    renderReport(state.report);
+    refreshLists();
+    if (report.redFlag.hit) toast('已生成报告：命中红旗征，建议优先转诊');
+    else toast('已生成分析报告并存入档案');
+  });
+  $('#btnFillDemo').addEventListener('click', fillDemoForm);
+  $('#btnResetForm').addEventListener('click', function(){
+    showEntry(true);
+    toast('表单已清空');
+  });
+  $('#entryForm').addEventListener('change', function(e){
+    const t = e.target;
+    if (t && t.type === 'checkbox') {
+      const l = t.closest('.chk');
+      if (l) l.classList.toggle('on', t.checked);
+    }
+  });
+
+  /* 报告操作 */
+  $('#btnBackEdit').addEventListener('click', function(){
+    if (state.currentId) {
+      const rec = findRecord(state.currentId);
+      if (rec) fillForm(rec);
+    }
+    switchView('entry');
+    renderEntryBar();
+  });
+  $('#btnCopyReport').addEventListener('click', function(){
+    if (!state.report) { toast('还没有报告可以复制'); return; }
+    const txt = reportText(state.report);
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(txt).then(function(){ toast('报告文本已复制到剪贴板'); },
+        function(){ fallbackCopy(txt); });
+    } else fallbackCopy(txt);
+  });
+  $('#btnPrintReport').addEventListener('click', function(){
+    if (!state.report) { toast('还没有报告可以打印'); return; }
+    window.print();
+  });
+
+  /* 档案 */
+  $('#archSearch').addEventListener('input', function(e){ state.archQuery = e.target.value; renderArchive(); });
+  $('#archFilter').addEventListener('change', function(e){ state.archFilter = e.target.value; renderArchive(); });
+  $('#btnExport').addEventListener('click', exportJSON);
+  $('#btnExportJson').addEventListener('click', exportJSON);
+  $('#btnImport').addEventListener('click', function(){ $('#fileImport').click(); });
+  $('#btnImportJson').addEventListener('click', function(){ $('#fileImport').click(); });
+  $('#fileImport').addEventListener('change', function(e){
+    const f = e.target.files && e.target.files[0];
+    if (f) importJSON(f);
+    e.target.value = '';
+  });
+  $('#btnClearSample').addEventListener('click', clearSampleData);
+  $('#btnClearAll').addEventListener('click', clearAllData);
+
+  /* 动态动作（事件委托） */
+  document.addEventListener('click', function(e){
+    let node = e.target;
+    if (node && node.nodeType === 3) node = node.parentNode;
+    if (!node || !node.closest) return;
+    const btn = node.closest('[data-act]');
+    if (!btn) return;
+    const act = btn.getAttribute('data-act');
+    const id = btn.getAttribute('data-id');
+    const rec = findRecord(id);
+    if (!rec) { toast('记录不存在，可能已被删除'); refreshLists(); return; }
+
+    if (act === 'open') {
+      state.currentId = rec.id;
+      state.report = buildReport(rec);
+      switchView('report');
+      renderReport(state.report);
+    } else if (act === 'edit') {
+      state.currentId = rec.id;
+      fillForm(rec);
+      switchView('entry');
+      renderEntryBar();
+    } else if (act === 'redo') {
+      const blank = blankRecord();
+      blank.name = rec.name; blank.age = rec.age; blank.gender = rec.gender; blank.wear = rec.wear;
+      state.currentId = null;
+      fillForm(blank);
+      switchView('entry');
+      renderEntryBar();
+      toast('已带入顾客基本信息，请录入本次新数据');
+    } else if (act === 'done') {
+      rec.nextReview = addDays(todayStr(), 28);
+      saveRecords(); refreshLists(); toast('已标记复查完成，下次复查 ' + rec.nextReview);
+    } else if (act === 'review') {
+      promptDateBox('设置复查日期', '为「' + esc(rec.name || '未命名') + '」设置下次复查日期：', rec.nextReview, function(v){
+        rec.nextReview = v || '';
+        saveRecords(); refreshLists();
+        toast(v ? '复查日期已设为 ' + v : '已清除复查日期');
+      });
+    } else if (act === 'del') {
+      confirmBox('删除档案', '将删除「<b>' + esc(rec.name || '未命名') + '</b>」的这条档案，删除后无法恢复。确定吗？', function(){
+        state.records = state.records.filter(function(r){ return r.id !== rec.id; });
+        if (state.currentId === rec.id) { state.currentId = null; state.report = null; }
+        saveRecords(); refreshAll(); toast('已删除该条档案');
+      });
+    }
+  });
+
+  /* PWA 安装 */
+  window.addEventListener('beforeinstallprompt', function(e){
+    e.preventDefault();
+    state.installEvt = e;
+  });
+  $('#btnInstall').addEventListener('click', function(){
+    if (state.installEvt) {
+      state.installEvt.prompt();
+      state.installEvt.userChoice.then(function(res){
+        if (res && res.outcome === 'accepted') toast('已开始安装到主屏幕');
+        else toast('已取消安装，可随时再试');
+        state.installEvt = null;
+      });
+    } else {
+      const ua = navigator.userAgent || '';
+      const isIOS = /iPad|iPhone|iPod/.test(ua) || (ua.indexOf('Mac') >= 0 && 'ontouchend' in document);
+      confirmBox('添加到主屏幕', isIOS
+        ? '当前使用 Safari / iOS：<br>1）点击底部的「分享」按钮<br>2）选择「添加到主屏幕」<br>3）确认名称后点「添加」<br>完成后即可全屏打开、离线使用。'
+        : '当前浏览器未提供一键安装：<br>1）点击浏览器右上角菜单（⋮）<br>2）选择「安装应用」或「添加到主屏幕」<br>3）确认后即可全屏打开、离线使用。<br><br>提示：需通过 http(s) 链接打开本页面，本地文件直接打开时浏览器不提供安装能力。', function(){});
+    }
+  });
+}
+function fallbackCopy(txt){
+  const ta = document.createElement('textarea');
+  ta.value = txt;
+  ta.style.position = 'fixed'; ta.style.opacity = '0';
+  document.body.appendChild(ta);
+  ta.select();
+  try { document.execCommand('copy'); toast('报告文本已复制'); }
+  catch (e) { toast('复制失败，请长按选择文本手动复制'); }
+  document.body.removeChild(ta);
+}
+
+/* ============================== 22. PWA 注册 ============================== */
+function registerSW(){
+  if (!('serviceWorker' in navigator)) return;
+  if (location.protocol !== 'http:' && location.protocol !== 'https:') return;
+  window.addEventListener('load', function(){
+    /* 与 sw.js 里的 CACHE 版本保持一致：改这里 + 改 sw.js 的 CACHE，所有设备即可拿到新版本。
+       带版本参数注册是为了绕开托管网关对 sw.js 路径的缓存，否则更新会被旧 SW 拦住。 */
+    var SW_VERSION = '1.1.1';
+    function done(){
+      const st = $('#syncText');
+      if (st) st.textContent = '本地存储 · 已支持离线打开';
+    }
+    navigator.serviceWorker.register('sw.js?v=' + SW_VERSION).then(done).catch(function(err){
+      /* 带版本号注册失败时，回退到普通路径再试一次 */
+      navigator.serviceWorker.register('sw.js').then(done).catch(function(e2){
+        console.warn('Service Worker 注册失败：', e2);
+      });
+      console.warn('带版本号注册失败，已回退：', err);
+    });
+  });
+}
+
+/* ============================== 23. 初始化 ============================== */
+function init(){
+  state.records = loadRecords();
+  const meta = storage.read(LS_META, {});
+  if (!meta.seeded && state.records.length === 0) {
+    try { seedData(); } catch (e) { console.warn('示例数据生成失败', e); }
+  }
+  state.records.forEach(function(r){ if (!r.analysis) r.analysis = summarize(r); });
+  saveRecords();
+  state.archFilter = 'all';
+  state.archQuery = '';
+  bindEvents();
+  setupPickers();
+  let startView = 'today';
+  try {
+    const qp = new URLSearchParams(location.search);
+    const hv = qp.get('view') || (location.hash || '').replace('#', '');
+    if (hv && VIEW_META[hv]) startView = hv;
+  } catch (e) { startView = 'today'; }
+  switchView(startView);
+  refreshAll();
+  registerSW();
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
+}
+
+
+
+
+
+
+
+
+
+</script>
+</body>
+</html>
