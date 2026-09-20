@@ -411,6 +411,37 @@ body.gated{overflow:hidden}
 .login-admin{font-size:11px;color:var(--ink3);margin-top:8px;text-align:center;line-height:1.6}
 .btn.blk{width:100%}
 
+/* ---------- 管理员面板 ---------- */
+.adm-mask{position:fixed;inset:0;z-index:10000;background:rgba(16,40,44,.5);display:flex;align-items:flex-start;justify-content:center;padding:24px 16px;overflow:auto}
+.adm-mask.hidden{display:none}
+.adm-box{width:100%;max-width:640px;background:var(--card);border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,.3);margin:auto}
+.adm-head{display:flex;align-items:center;gap:10px;padding:16px 18px;border-bottom:1px solid var(--line)}
+.adm-head h3{margin:0;font-size:16px;font-weight:680}
+.adm-head .sp{flex:1}
+.adm-x{border:0;background:transparent;font-size:22px;line-height:1;cursor:pointer;color:var(--ink3);width:36px;height:36px;border-radius:8px}
+.adm-x:hover{background:var(--line2);color:var(--ink)}
+.adm-pad{padding:18px}
+.adm-tip{font-size:13px;color:var(--ink2);margin:0 0 10px}
+.adm-err{color:var(--danger);font-size:12.5px;min-height:18px;margin:6px 0}
+.adm-sec{margin-bottom:22px}
+.adm-sec-h{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;color:var(--primary-d);margin-bottom:10px}
+.adm-sec-h .sp{flex:1}
+.adm-form{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.adm-form input{min-height:40px;padding:0 10px;border:1px solid var(--line);border-radius:10px;font-size:15px;background:#FBFDFD}
+.adm-form input:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-l)}
+.adm-list{display:flex;flex-direction:column;gap:8px}
+.adm-item{display:flex;align-items:center;gap:10px;flex-wrap:wrap;border:1px solid var(--line);border-radius:11px;padding:10px 12px}
+.adm-item .mono{font-family:ui-monospace,Menlo,Consolas,monospace}
+.adm-item .grow{flex:1;min-width:120px}
+.adm-item .meta{font-size:11.5px;color:var(--ink3)}
+.adm-tag{font-size:11.5px;font-weight:700;padding:1px 8px;border-radius:99px}
+.adm-tag.on{background:var(--ok-l);color:var(--ok)}
+.adm-tag.off{background:var(--danger-l);color:var(--danger)}
+.adm-empty{font-size:13px;color:var(--ink3);padding:12px 0;text-align:center}
+#admPass{width:100%;min-height:46px;padding:0 14px;border:1px solid var(--line);border-radius:12px;font-size:16px;background:#FBFDFD;box-sizing:border-box}
+#admPass:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-l)}
+@media(max-width:520px){ .adm-form input{width:100%} }
+
 </style>
 </head>
 <body>
@@ -496,6 +527,12 @@ body.gated{overflow:hidden}
           <path d="M3.5 8.5h17M5.5 8.5V19a1.5 1.5 0 001.5 1.5h10a1.5 1.5 0 001.5-1.5V8.5"/><rect x="3" y="4.5" width="18" height="4" rx="1.3"/>
         </svg>
         <span>顾客档案</span>
+      </button>
+      <button id="navAdmin" class="hidden" type="button">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 3.5l7.5 3v5.2c0 4.3-3.1 7.4-7.5 8.8-4.4-1.4-7.5-4.5-7.5-8.8V6.5z"/><path d="M9.2 12.2l2 2 3.6-4"/>
+        </svg>
+        <span>管理</span>
       </button>
     </nav>
 
@@ -834,6 +871,55 @@ body.gated{overflow:hidden}
   <p id="modalText"></p>
   <div class="row"><button class="btn" id="modalCancel">取消</button><button class="btn dan" id="modalOk">确认</button></div>
 </div></div>
+
+<!-- ================= 管理员面板（仅管理员可见） ================= -->
+<div id="adminModal" class="adm-mask hidden">
+  <div class="adm-box">
+    <div class="adm-head">
+      <h3>管理员</h3><span class="sp"></span>
+      <button class="adm-x" id="admClose" type="button" aria-label="关闭">&times;</button>
+    </div>
+    <div class="adm-pad">
+      <div id="admLogin">
+        <p class="adm-tip">请输入管理员密码以管理用户与邀请码</p>
+        <input id="admPass" type="password" placeholder="管理员密码" autocomplete="off">
+        <div class="adm-err" id="admErr"></div>
+        <button class="btn pri blk" id="admLoginBtn" type="button" style="min-height:44px">进入管理</button>
+      </div>
+
+      <div id="admBody" class="hidden">
+        <div class="adm-sec">
+          <div class="adm-sec-h">用户（停用即踢出）<span class="sp"></span>
+            <button class="btn sm" id="admReload" type="button">刷新</button></div>
+          <div class="adm-list" id="admUsers"><div class="adm-empty">加载中…</div></div>
+        </div>
+
+        <div class="adm-sec">
+          <div class="adm-sec-h">邀请码（发码 / 停用）</div>
+          <div class="adm-form">
+            <input id="admNewCode" placeholder="邀请码" maxlength="24">
+            <input id="admNewMax" type="number" value="1" min="1" style="width:74px">
+            <input id="admNewDays" type="number" value="30" min="1" style="width:74px">
+            <input id="admNewNote" placeholder="备注：发给谁" maxlength="40">
+            <button class="btn sm pri" id="admAdd" type="button">新建</button>
+            <button class="btn sm" id="admRand" type="button">随机</button>
+          </div>
+          <div class="adm-err" id="admCodeErr"></div>
+          <div class="adm-list" id="admCodes"><div class="adm-empty">加载中…</div></div>
+        </div>
+
+        <div class="adm-sec">
+          <div class="adm-sec-h">修改管理员密码</div>
+          <div class="adm-form">
+            <input id="admNewPass" type="password" placeholder="新密码（至少 6 位）" autocomplete="new-password">
+            <button class="btn sm" id="admChangePass" type="button">修改</button>
+          </div>
+          <div class="adm-err" id="admPassErr"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 
 <script>
 'use strict';
@@ -2862,6 +2948,7 @@ function bindEvents(){
   $$('#nav button, #tabbar button').forEach(function(b){
     b.addEventListener('click', function(){
       const v = b.getAttribute('data-view');
+      if (!v) return;   /* 非视图按钮（如「管理」）由各自的处理函数负责，不参与视图切换 */
       /* 从其他视图进入「检查录入」时，始终开启一条新档案，避免静默覆盖上一位顾客的档案 */
       if (v === 'entry' && state.view !== 'entry') { showEntry(true); return; }
       switchView(v);
@@ -3090,9 +3177,12 @@ function cloudRpc(fn, params){
 function getAuthSafe(){
   try { return JSON.parse(localStorage.getItem(AUTH_CONFIG.storageKey) || 'null'); } catch(e){ return null; }
 }
-function saveAuth(phone, code, lastOk){
-  try { localStorage.setItem(AUTH_CONFIG.storageKey, JSON.stringify({ phone: phone, code: code || '', ts: Date.now(), lastOk: lastOk || Date.now() })); }
-  catch(e){}
+function saveAuth(phone, code, lastOk, isAdmin){
+  try {
+    var prev = getAuthSafe() || {};
+    var adm = (isAdmin === undefined || isAdmin === null) ? prev.isAdmin : isAdmin;
+    localStorage.setItem(AUTH_CONFIG.storageKey, JSON.stringify({ phone: phone, code: code || '', ts: Date.now(), lastOk: lastOk || Date.now(), isAdmin: adm === true }));
+  } catch(e){}
 }
 function showOfflineBanner(){
   try {
@@ -3124,7 +3214,16 @@ function doLogin(phone, code){
     if (btn){ btn.disabled = false; btn.textContent = '登 录 / 注 册'; }
     if (res.networkError){ errEl.textContent = '网络异常，无法连接服务器，请稍后再试'; return false; }
     const d = res.data || {};
-    if (d.ok === true){ saveAuth(phone, code); errEl.textContent = ''; hideLoginGate(); bootApp(); return true; }
+    if (d.ok === true){
+      errEl.textContent = '';
+      return cloudRpc('check_access', { p_phone: phone }).then(function(r2){
+        var d2 = (r2 && r2.data) || {};
+        var adm = (d2.is_admin === true);
+        saveAuth(phone, code, Date.now(), adm);
+        applyAdminUI(adm);
+        hideLoginGate(); bootApp(); return true;
+      });
+    }
     errEl.textContent = d.msg || '邀请码无效，请向管理员获取';
     return false;
   });
@@ -3136,9 +3235,14 @@ function verifyAccessThenBoot(){
   if (!a || !a.phone){ showLoginGate(); return; }
   if (!cloudReady()){ bootApp(); return; }
   cloudRpc('check_access', { p_phone: a.phone }).then(function(res){
-    if (res.networkError){ if (CLOUD.offlineWarn) showOfflineBanner(); bootApp(); return; }
+    if (res.networkError){ if (CLOUD.offlineWarn) showOfflineBanner(); applyAdminUI(a.isAdmin === true); bootApp(); return; }
     const d = res.data || {};
-    if (d.ok === true){ saveAuth(a.phone, a.code, Date.now()); bootApp(); return; }
+    if (d.ok === true){
+      var adm = (d.is_admin === true);
+      saveAuth(a.phone, a.code, Date.now(), adm);
+      applyAdminUI(adm);
+      bootApp(); return;
+    }
     try { localStorage.removeItem(AUTH_CONFIG.storageKey); } catch(e){}
     showLoginGate();
     const errEl = document.getElementById('loginErr');
@@ -3168,9 +3272,146 @@ function bindLogin(){
   if (out) out.addEventListener('click', doLogout);
 }
 
+/* ============================== 22.6 管理员面板 ============================== */
+var adminToken = '';   // 仅存内存：刷新页面即需重新输入管理员密码
+function applyAdminUI(isAdmin){
+  var b = document.getElementById('navAdmin');
+  if (b){ if (isAdmin) b.classList.remove('hidden'); else b.classList.add('hidden'); }
+}
+function admEl(id){ return document.getElementById(id); }
+function openAdmin(){
+  admEl('adminModal').classList.remove('hidden');
+  admEl('admErr').textContent = '';
+  if (adminToken){ showAdminBody(); adminLoad(); }
+  else { admEl('admLogin').classList.remove('hidden'); admEl('admBody').classList.add('hidden'); admEl('admPass').value = ''; }
+}
+function closeAdmin(){ var m = admEl('adminModal'); if (m) m.classList.add('hidden'); }
+function showAdminBody(){ admEl('admLogin').classList.add('hidden'); admEl('admBody').classList.remove('hidden'); }
+function admExpired(msg){
+  adminToken = '';
+  admEl('admLogin').classList.remove('hidden');
+  admEl('admBody').classList.add('hidden');
+  admEl('admErr').textContent = msg || '登录已过期，请重新输入管理员密码';
+}
+function adminLogin(){
+  var pass = admEl('admPass').value, err = admEl('admErr');
+  if (!pass){ err.textContent = '请输入管理员密码'; return; }
+  err.textContent = '验证中…';
+  cloudRpc('admin_login', { p_pass: pass }).then(function(res){
+    if (res.networkError){ err.textContent = '网络异常'; return; }
+    var d = res.data || {};
+    if (d.ok === true){ adminToken = d.token; err.textContent = ''; admEl('admPass').value = ''; showAdminBody(); adminLoad(); }
+    else err.textContent = d.msg || '密码错误';
+  });
+}
+function adminLoad(){
+  admEl('admUsers').innerHTML = '<div class="adm-empty">加载中…</div>';
+  admEl('admCodes').innerHTML = '<div class="adm-empty">加载中…</div>';
+  cloudRpc('admin_list', { p_token: adminToken }).then(function(res){
+    if (res.networkError){ admExpired('网络异常'); return; }
+    var d = res.data || {};
+    if (d.ok !== true){ admExpired(d.msg); return; }
+    renderAdminUsers(d.users || []);
+    renderAdminCodes(d.codes || []);
+  });
+}
+function renderAdminUsers(list){
+  var box = admEl('admUsers');
+  if (!list.length){ box.innerHTML = '<div class="adm-empty">还没有用户</div>'; return; }
+  var h = '';
+  list.forEach(function(u){
+    h += '<div class="adm-item">' +
+      '<div class="grow"><div class="mono">' + esc(u.phone) + (u.is_admin ? ' <span class="adm-tag on">管理员</span>' : '') + '</div>' +
+      '<div class="meta">码 ' + esc(u.code || '—') + ' · 最近 ' + esc(String(u.last_seen || '').slice(0,16).replace('T',' ')) + '</div></div>' +
+      '<span class="adm-tag ' + (u.active ? 'on">正常' : 'off">已停用') + '</span>' +
+      (u.active
+        ? '<button class="btn sm dan" data-admkick="' + esc(u.phone) + '">停用</button>'
+        : '<button class="btn sm" data-admopen="' + esc(u.phone) + '">恢复</button>') +
+      '<button class="btn sm" data-admdel="' + esc(u.phone) + '">删除</button>' +
+      '</div>';
+  });
+  box.innerHTML = h;
+  box.querySelectorAll('[data-admkick]').forEach(function(b){ b.onclick = function(){ admSetUser(b.getAttribute('data-admkick'), false); }; });
+  box.querySelectorAll('[data-admopen]').forEach(function(b){ b.onclick = function(){ admSetUser(b.getAttribute('data-admopen'), true); }; });
+  box.querySelectorAll('[data-admdel]').forEach(function(b){ b.onclick = function(){ admDelUser(b.getAttribute('data-admdel')); }; });
+}
+function renderAdminCodes(list){
+  var box = admEl('admCodes');
+  if (!list.length){ box.innerHTML = '<div class="adm-empty">还没有邀请码</div>'; return; }
+  var h = '';
+  list.forEach(function(c){
+    h += '<div class="adm-item">' +
+      '<div class="grow"><div class="mono">' + esc(c.code) + '</div>' +
+      '<div class="meta">已用 ' + (c.used_count || 0) + '/' + (c.max_uses || 0) +
+      ' · 至 ' + esc(String(c.expires_at || '长期').slice(0,10)) + (c.note ? ' · ' + esc(c.note) : '') + '</div></div>' +
+      '<span class="adm-tag ' + (c.active ? 'on">启用' : 'off">已停用') + '</span>' +
+      (c.active
+        ? '<button class="btn sm dan" data-admcoff="' + esc(c.code) + '">停用</button>'
+        : '<button class="btn sm" data-admcon="' + esc(c.code) + '">启用</button>') +
+      '<button class="btn sm" data-admcopy="' + esc(c.code) + '">复制</button>' +
+      '</div>';
+  });
+  box.innerHTML = h;
+  box.querySelectorAll('[data-admcoff]').forEach(function(b){ b.onclick = function(){ admSetCode(b.getAttribute('data-admcoff'), false); }; });
+  box.querySelectorAll('[data-admcon]').forEach(function(b){ b.onclick = function(){ admSetCode(b.getAttribute('data-admcon'), true); }; });
+  box.querySelectorAll('[data-admcopy]').forEach(function(b){ b.onclick = function(){
+    var v = b.getAttribute('data-admcopy');
+    if (navigator.clipboard) navigator.clipboard.writeText(v);
+    b.textContent = '已复制'; setTimeout(function(){ b.textContent = '复制'; }, 1200);
+  }; });
+}
+function admSetUser(phone, active){ cloudRpc('admin_set_user', { p_token: adminToken, p_phone: phone, p_active: active }).then(adminLoad); }
+function admDelUser(phone){
+  if (!confirm('确定彻底删除用户 ' + phone + '？删除后需重新用邀请码登录。')) return;
+  cloudRpc('admin_del_user', { p_token: adminToken, p_phone: phone }).then(adminLoad);
+}
+function admSetCode(code, active){ cloudRpc('admin_set_code', { p_token: adminToken, p_code: code, p_active: active }).then(adminLoad); }
+function admAddCode(){
+  var code = (admEl('admNewCode').value || '').trim();
+  var max  = parseInt(admEl('admNewMax').value, 10) || 1;
+  var days = parseInt(admEl('admNewDays').value, 10) || 30;
+  var note = (admEl('admNewNote').value || '').trim();
+  var err  = admEl('admCodeErr');
+  if (!code){ err.textContent = '请填写邀请码'; return; }
+  err.textContent = '';
+  cloudRpc('admin_add_code', { p_token: adminToken, p_code: code, p_max: max, p_days: days, p_note: note }).then(function(res){
+    var d = (res && res.data) || {};
+    if (d.ok === true){ admEl('admNewCode').value = ''; admEl('admNewNote').value = ''; adminLoad(); }
+    else err.textContent = d.msg || '创建失败';
+  });
+}
+function admChangePass(){
+  var np = admEl('admNewPass').value, err = admEl('admPassErr');
+  if (!np || np.length < 6){ err.textContent = '新密码至少 6 位'; return; }
+  cloudRpc('admin_change_pass', { p_token: adminToken, p_new: np }).then(function(res){
+    var d = (res && res.data) || {};
+    if (d.ok === true){ err.textContent = ''; admEl('admNewPass').value = ''; alert('管理员密码已修改'); }
+    else err.textContent = d.msg || '修改失败';
+  });
+}
+function randAdmCode(){
+  var s = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789', o = '';
+  for (var i = 0; i < 6; i++) o += s.charAt(Math.floor(Math.random() * s.length));
+  admEl('admNewCode').value = 'VIP-' + o;
+}
+function bindAdmin(){
+  var b;
+  b = admEl('navAdmin');      if (b) b.onclick  = openAdmin;
+  b = admEl('admClose');      if (b) b.onclick  = closeAdmin;
+  b = admEl('admLoginBtn');   if (b) b.onclick  = adminLogin;
+  b = admEl('admReload');     if (b) b.onclick  = adminLoad;
+  b = admEl('admAdd');        if (b) b.onclick  = admAddCode;
+  b = admEl('admRand');       if (b) b.onclick  = randAdmCode;
+  b = admEl('admChangePass'); if (b) b.onclick  = admChangePass;
+  b = admEl('admPass');       if (b) b.addEventListener('keydown', function(e){ if (e.key === 'Enter') adminLogin(); });
+  var mask = admEl('adminModal');
+  if (mask) mask.addEventListener('click', function(e){ if (e.target === mask) closeAdmin(); });
+}
+
 /* ============================== 23. 初始化 ============================== */
 function init(){
   bindLogin();
+  bindAdmin();
   if (!isAuthed()) { showLoginGate(); return; }
   verifyAccessThenBoot();
 }
