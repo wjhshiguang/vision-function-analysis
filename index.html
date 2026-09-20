@@ -389,9 +389,64 @@ body.pk-open{overflow:hidden}
   .duo{grid-template-columns:1fr 1fr}
   .card,.report{box-shadow:none;border-color:#ddd}
 }
+
+/* ---------- 登录门禁（手机号 + 邀请码，软校验） ---------- */
+body.gated{overflow:hidden}
+.login-gate{position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;padding:24px;
+  background:linear-gradient(160deg,#0E8A8D 0%,#0A5C70 100%);-webkit-overflow-scrolling:touch}
+.login-gate.hidden{display:none}
+.login-card{width:100%;max-width:380px;background:var(--card);border-radius:20px;box-shadow:0 20px 60px rgba(0,0,0,.28);padding:30px 26px;box-sizing:border-box}
+.login-brand{display:flex;align-items:center;gap:11px;margin-bottom:4px}
+.login-brand .logo{width:42px;height:42px;border-radius:12px;background:linear-gradient(145deg,#0E8A8D,#0A5C70);display:flex;align-items:center;justify-content:center;flex:0 0 42px}
+.login-brand h1{font-size:18px;margin:0;font-weight:680;letter-spacing:.2px}
+.login-brand p{margin:1px 0 0;font-size:12px;color:var(--ink3)}
+.login-sub{font-size:13px;color:var(--ink2);margin:14px 0 18px;line-height:1.65}
+.login-sub strong{color:var(--primary-d)}
+.login-field{margin-bottom:14px}
+.login-field label{display:block;font-size:12.5px;color:var(--ink2);font-weight:600;margin-bottom:6px}
+.login-field input{width:100%;min-height:46px;padding:0 14px;font-size:16px;border:1px solid var(--line);border-radius:12px;background:#FBFDFD;box-sizing:border-box;outline:none;transition:.15s}
+.login-field input:focus{border-color:var(--primary);background:#fff;box-shadow:0 0 0 3px var(--primary-l)}
+.login-err{color:var(--danger);font-size:12.5px;min-height:18px;margin:2px 0 10px}
+.login-note{font-size:11.5px;color:var(--ink3);margin-top:16px;line-height:1.6;text-align:center}
+.login-admin{font-size:11px;color:var(--ink3);margin-top:8px;text-align:center;line-height:1.6}
+.btn.blk{width:100%}
+
 </style>
 </head>
 <body>
+
+<!-- ================= 登录门禁：手机号 + 邀请码 ================= -->
+<div id="loginGate" class="login-gate">
+  <div class="login-card">
+    <div class="login-brand">
+      <div class="logo">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.6">
+          <path d="M12 6.5c4.6 0 8.3 3.2 9.6 5.5-1.3 2.3-5 5.5-9.6 5.5S3.7 14.3 2.4 12C3.7 9.7 7.4 6.5 12 6.5z" stroke-linejoin="round"/>
+          <circle cx="12" cy="12" r="2.4" fill="#fff" stroke="none"/>
+        </svg>
+      </div>
+      <div>
+        <h1>视功能分析台</h1>
+        <p>Optometry Analysis · 登录</p>
+      </div>
+    </div>
+    <p class="login-sub">本工具仅限授权用户使用，请输入<strong>手机号</strong>与<strong>邀请码</strong>进入。首次输入即完成注册。</p>
+    <form id="loginForm" autocomplete="on" novalidate>
+      <div class="login-field">
+        <label for="loginPhone">手机号</label>
+        <input id="loginPhone" name="phone" type="tel" inputmode="numeric" maxlength="11" placeholder="请输入 11 位手机号" autocomplete="tel">
+      </div>
+      <div class="login-field">
+        <label for="loginCode">邀请码</label>
+        <input id="loginCode" name="code" type="text" maxlength="32" placeholder="请输入邀请码" autocomplete="off">
+      </div>
+      <div class="login-err" id="loginErr"></div>
+      <button type="submit" class="btn pri blk" id="loginBtn" style="min-height:46px;font-size:15px;letter-spacing:2px">登 录 / 注 册</button>
+    </form>
+    <p class="login-note">邀请码由管理员（门店）发放，无邀请码无法进入。</p>
+    <p class="login-admin" id="loginAdminTip"></p>
+  </div>
+</div>
 
 <div class="app">
   <!-- ================= 左侧边栏 ================= -->
@@ -455,6 +510,9 @@ body.pk-open{overflow:hidden}
       <div class="row">
         <button class="btn sm" id="btnExport">导出备份</button>
         <button class="btn sm" id="btnImport">导入恢复</button>
+      </div>
+      <div class="row">
+        <button class="btn sm dan" id="btnLogout">退出登录</button>
       </div>
       <input type="file" id="fileImport" accept=".json,application/json" class="hidden">
     </div>
@@ -790,6 +848,18 @@ const LS_RECORDS = 'wb_vision_records_v1';
 const LS_META    = 'wb_vision_meta_v1';
 const APP_VERSION = '1.0.0';
 
+/* ============================== 0.1 登录门禁配置（管理员可改） ============================== */
+/* 这是纯前端「软校验」：邀请码会出现在网页源码里，懂技术的人能查看；
+   它用来挡住普通用户、让你掌控谁能进，但无法做到真·防盗用。
+   真·防盗用请升级云端后端（见 README「升级路径」）。
+   修改邀请码后，重新部署（git push）即生效。 */
+const AUTH_CONFIG = {
+  inviteCodes: ['SHIGUANG2026', 'JINGGONG888'], // ← 邀请码列表，可增删改。仅持有者能进入。
+  caseInsensitive: true,   // 邀请码是否不区分大小写
+  requirePhone: true,      // 是否强制要求手机号
+  storageKey: 'wb_vision_auth_v1' // 登录态本地存储键
+};
+
 const state = {
   view: 'today',
   records: [],
@@ -797,7 +867,8 @@ const state = {
   report: null,
   archFilter: 'all',
   archQuery: '',
-  installEvt: null
+  installEvt: null,
+  booted: false
 };
 
 function $(sel, root){ return (root || document).querySelector(sel); }
@@ -2961,8 +3032,91 @@ function registerSW(){
   });
 }
 
+/* ============================== 22.5 登录门禁（软校验，纯前端） ============================== */
+function isAuthed(){
+  try {
+    const raw = localStorage.getItem(AUTH_CONFIG.storageKey);
+    if (!raw) return false;
+    const d = JSON.parse(raw);
+    return !!(d && d.phone && d.code);
+  } catch(e){ return false; }
+}
+function showLoginGate(){
+  document.body.classList.add('gated');
+  const g = document.getElementById('loginGate');
+  if (g) g.classList.remove('hidden');
+}
+function hideLoginGate(){
+  document.body.classList.remove('gated');
+  const g = document.getElementById('loginGate');
+  if (g) g.classList.add('hidden');
+  // 在侧边栏显示已登录手机号
+  const phone = (function(){ try { return (JSON.parse(localStorage.getItem(AUTH_CONFIG.storageKey)||'{}')).phone||''; } catch(e){ return ''; } })();
+  const nm = document.querySelector('.userbox .nm');
+  const sub = document.querySelector('.userbox .sub');
+  if (nm && phone) nm.textContent = phone.replace(/(\d{3})\d{4}(\d{4})/, '$1****$2');
+  if (sub) sub.textContent = '已授权 · 视光师';
+}
+function validPhone(p){ return /^1[3-9]\d{9}$/.test(p || ''); }
+function validCode(c){
+  if (!c) return false;
+  const key = AUTH_CONFIG.caseInsensitive ? String(c).trim().toUpperCase() : String(c).trim();
+  const list = AUTH_CONFIG.inviteCodes.map(function(x){
+    return AUTH_CONFIG.caseInsensitive ? String(x).toUpperCase() : String(x);
+  });
+  return list.indexOf(key) !== -1;
+}
+function doLogin(phone, code){
+  const errEl = document.getElementById('loginErr');
+  phone = (phone || '').trim();
+  code  = (code  || '').trim();
+  if (AUTH_CONFIG.requirePhone && !validPhone(phone)){
+    errEl.textContent = '请输入正确的 11 位手机号'; return false;
+  }
+  if (!validCode(code)){
+    errEl.textContent = '邀请码不正确，请向管理员获取'; return false;
+  }
+  try {
+    localStorage.setItem(AUTH_CONFIG.storageKey, JSON.stringify({ phone: phone, code: code, ts: Date.now() }));
+  } catch(e){}
+  if (errEl) errEl.textContent = '';
+  hideLoginGate();
+  bootApp();
+  return true;
+}
+function doLogout(){
+  try { localStorage.removeItem(AUTH_CONFIG.storageKey); } catch(e){}
+  state.booted = false;
+  location.reload();
+}
+function bindLogin(){
+  const form = document.getElementById('loginForm');
+  if (form) {
+    form.addEventListener('submit', function(e){
+      e.preventDefault();
+      const phone = document.getElementById('loginPhone').value;
+      const code  = document.getElementById('loginCode').value;
+      doLogin(phone, code);
+    });
+  }
+  const phoneEl = document.getElementById('loginPhone');
+  if (phoneEl) {
+    phoneEl.addEventListener('input', function(){ this.value = this.value.replace(/\D/g, '').slice(0, 11); });
+  }
+  const out = document.getElementById('btnLogout');
+  if (out) out.addEventListener('click', doLogout);
+}
+
 /* ============================== 23. 初始化 ============================== */
 function init(){
+  bindLogin();
+  if (!isAuthed()) { showLoginGate(); return; }
+  bootApp();
+}
+
+function bootApp(){
+  if (state.booted) { hideLoginGate(); return; }
+  state.booted = true;
   state.records = loadRecords();
   const meta = storage.read(LS_META, {});
   if (!meta.seeded && state.records.length === 0) {
@@ -2982,6 +3136,7 @@ function init(){
   } catch (e) { startView = 'today'; }
   switchView(startView);
   refreshAll();
+  hideLoginGate();
   registerSW();
 }
 
