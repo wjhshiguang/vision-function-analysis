@@ -854,11 +854,19 @@ const APP_VERSION = '1.0.0';
    真·防盗用请升级云端后端（见 README「升级路径」）。
    修改邀请码后，重新部署（git push）即生效。 */
 const AUTH_CONFIG = {
-  inviteCodes: ['SHIGUANG2026', 'JINGGONG888'], // ← 邀请码列表，可增删改。仅持有者能进入。
+  inviteCodes: [], // 已改为服务端校验（Supabase），此处留空：源码里不再存任何邀请码。仅当 CLOUD.anonKey 为空时才回退到此列表。
   caseInsensitive: true,   // 邀请码是否不区分大小写
   requirePhone: true,      // 是否强制要求手机号
   storageKey: 'wb_vision_auth_v1' // 登录态本地存储键
 };
+
+/* ---- 云端服务端鉴权（Supabase）。anonKey 为空时自动回退到上面的软门禁，不会影响使用 ---- */
+const CLOUD = {
+  url: 'https://lyaumjxazxktwpjxgncy.supabase.co', // 项目地址（已确认可达）
+  anonKey: 'sb_publishable_QejAxjSoKwHARtap8CZv5Q_rminivc6', // Supabase publishable key（即 anon，配合 RLS 可安全公开）
+  offlineWarn: true
+};
+function cloudReady(){ return !!(CLOUD.url && CLOUD.anonKey); }
 
 const state = {
   view: 'today',
@@ -3066,23 +3074,76 @@ function validCode(c){
   });
   return list.indexOf(key) !== -1;
 }
+/* ---- 云端 RPC：直接调 PostgREST，不引入任何外部 SDK ---- */
+function cloudRpc(fn, params){
+  return fetch(CLOUD.url + '/rest/v1/rpc/' + fn, {
+    method: 'POST',
+    headers: { 'apikey': CLOUD.anonKey, 'Authorization': 'Bearer ' + CLOUD.anonKey, 'Content-Type': 'application/json' },
+    body: JSON.stringify(params || {})
+  }).then(function(r){
+    return r.text().then(function(t){
+      let j = null; try { j = JSON.parse(t); } catch(e){}
+      return { ok: (r.status >= 200 && r.status < 300), status: r.status, data: j };
+    });
+  }).catch(function(){ return { networkError: true, status: 0, data: null }; });
+}
+function getAuthSafe(){
+  try { return JSON.parse(localStorage.getItem(AUTH_CONFIG.storageKey) || 'null'); } catch(e){ return null; }
+}
+function saveAuth(phone, code, lastOk){
+  try { localStorage.setItem(AUTH_CONFIG.storageKey, JSON.stringify({ phone: phone, code: code || '', ts: Date.now(), lastOk: lastOk || Date.now() })); }
+  catch(e){}
+}
+function showOfflineBanner(){
+  try {
+    const el = document.createElement('div');
+    el.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:9998;background:#B9761A;color:#fff;font-size:12.5px;padding:7px 12px;text-align:center';
+    el.textContent = '当前无法连接服务器，以离线模式进入（授权未复查）';
+    document.body.appendChild(el);
+    setTimeout(function(){ if (el.parentNode) el.parentNode.removeChild(el); }, 6000);
+  } catch(e){}
+}
+
 function doLogin(phone, code){
   const errEl = document.getElementById('loginErr');
+  const btn   = document.getElementById('loginBtn');
   phone = (phone || '').trim();
   code  = (code  || '').trim();
   if (AUTH_CONFIG.requirePhone && !validPhone(phone)){
     errEl.textContent = '请输入正确的 11 位手机号'; return false;
   }
-  if (!validCode(code)){
-    errEl.textContent = '邀请码不正确，请向管理员获取'; return false;
+  if (!cloudReady()){
+    // 未配置云端 → 回退到本地软校验（旧行为，保证始终可用）
+    if (!validCode(code)){ errEl.textContent = '邀请码不正确，请向管理员获取'; return false; }
+    saveAuth(phone, code);
+    errEl.textContent = ''; hideLoginGate(); bootApp(); return true;
   }
-  try {
-    localStorage.setItem(AUTH_CONFIG.storageKey, JSON.stringify({ phone: phone, code: code, ts: Date.now() }));
-  } catch(e){}
-  if (errEl) errEl.textContent = '';
-  hideLoginGate();
-  bootApp();
-  return true;
+  if (btn){ btn.disabled = true; btn.textContent = '验证中…'; }
+  errEl.textContent = '';
+  return cloudRpc('redeem_invite', { p_phone: phone, p_code: code }).then(function(res){
+    if (btn){ btn.disabled = false; btn.textContent = '登 录 / 注 册'; }
+    if (res.networkError){ errEl.textContent = '网络异常，无法连接服务器，请稍后再试'; return false; }
+    const d = res.data || {};
+    if (d.ok === true){ saveAuth(phone, code); errEl.textContent = ''; hideLoginGate(); bootApp(); return true; }
+    errEl.textContent = d.msg || '邀请码无效，请向管理员获取';
+    return false;
+  });
+}
+
+/* 每次打开复查授权：服务端说停用就立刻踢出；网络不通则放行缓存登录态 */
+function verifyAccessThenBoot(){
+  const a = getAuthSafe();
+  if (!a || !a.phone){ showLoginGate(); return; }
+  if (!cloudReady()){ bootApp(); return; }
+  cloudRpc('check_access', { p_phone: a.phone }).then(function(res){
+    if (res.networkError){ if (CLOUD.offlineWarn) showOfflineBanner(); bootApp(); return; }
+    const d = res.data || {};
+    if (d.ok === true){ saveAuth(a.phone, a.code, Date.now()); bootApp(); return; }
+    try { localStorage.removeItem(AUTH_CONFIG.storageKey); } catch(e){}
+    showLoginGate();
+    const errEl = document.getElementById('loginErr');
+    if (errEl) errEl.textContent = d.msg || '账号已被管理员停用';
+  });
 }
 function doLogout(){
   try { localStorage.removeItem(AUTH_CONFIG.storageKey); } catch(e){}
@@ -3111,7 +3172,7 @@ function bindLogin(){
 function init(){
   bindLogin();
   if (!isAuthed()) { showLoginGate(); return; }
-  bootApp();
+  verifyAccessThenBoot();
 }
 
 function bootApp(){
