@@ -1610,8 +1610,9 @@ function assessVergence(rec){
     findings.push({ name:'散开不足（DI）', level:'major',
       basis: '远距内隐斜 ' + fmtNum(dDist) + 'Δ 大于近距（' + phoriaText(dNear) + '）' + (sup.length ? '；' + sup.join('；') : '') + '。' });
   }
-  /* 散开过度 DE：远距外隐斜（负值）大于近距 */
-  if (dDist !== null && dDist < 0 && dNear !== null && dDist < dNear) {
+  /* 散开过度 DE：远距外隐斜（负值）大于近距外隐斜；近距须为外隐斜或正位（dNear<=0），
+     避免近距为内隐斜（正值）时 dDist<dNear 恒真导致集合过度（CE）患者被误判为 DE */
+  if (dDist !== null && dDist < 0 && dNear !== null && dNear <= 0 && dDist < dNear) {
     const sup = [];
     if (distBObrk !== null && distBObrk < 19) sup.push('远距 BO 破裂点 ' + fmtNum(distBObrk) + 'Δ 偏低');
     findings.push({ name:'散开过度（DE）', level:'major',
