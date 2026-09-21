@@ -3301,33 +3301,19 @@ function applyAdminUI(isAdmin){
   if (b){ if (isAdmin) b.classList.remove('hidden'); else b.classList.add('hidden'); }
 }
 function admEl(id){ return document.getElementById(id); }
-  /* 免密进入：服务端已认定你是管理员（is_admin），凭手机号直接换票据；
-     拿不到票（函数未部署 / 网络异常 / 非管理员）才回退到密码框。 */
+  /* 安全策略：管理面板一律要求输入管理员密码，不再提供「凭手机号免密进入」。
+     即便登录的手机号属于管理员（is_admin=true），也必须输密码 —— 防止
+     「知道管理员手机号 + 手上有任意有效邀请码」即可进入管理面板。 */
   function showPassGate(){
     admEl('admLogin').classList.remove('hidden');
     admEl('admBody').classList.add('hidden');
     admEl('admPass').value = '';
   }
-  function adminLoginByPhone(phone){
-    var err = admEl('admErr');
-    err.textContent = '正在进入…';
-    cloudRpc('admin_login_by_phone', { p_phone: phone }).then(function(res){
-      var d = (res && res.data) || {};
-      if (res && res.networkError){ err.textContent = ''; showPassGate(); return; }
-      if (d.ok === true){
-        adminToken = d.token; err.textContent = ''; showAdminBody(); adminLoad();
-      } else {
-        err.textContent = ''; showPassGate();   // 免密不可用 → 走原来的密码入口
-      }
-    });
-  }
   function openAdmin(){
     admEl('adminModal').classList.remove('hidden');
     admEl('admErr').textContent = '';
     if (adminToken){ showAdminBody(); adminLoad(); return; }
-    var a = getAuthSafe() || {};
-    if (a.isAdmin === true && a.phone) adminLoginByPhone(a.phone);
-    else showPassGate();
+    showPassGate();   // 永远走密码框，不再免密
   }
 function closeAdmin(){ var m = admEl('adminModal'); if (m) m.classList.add('hidden'); }
 function showAdminBody(){ admEl('admLogin').classList.add('hidden'); admEl('admBody').classList.remove('hidden'); }
