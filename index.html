@@ -3297,8 +3297,11 @@ function bindLogin(){
 /* ============================== 22.6 管理员面板 ============================== */
 var adminToken = '';   // 仅存内存：刷新页面即需重新输入管理员密码
 function applyAdminUI(isAdmin){
+  /* 不再用 is_admin 本地标记决定是否显示「管理」入口：避免“用管理员手机号登录”
+     会让顾客看到该按钮而暴露管理员身份。改为对【所有已登录用户】统一显示，
+     点开后仍需输入管理员密码（openAdmin 已强制走密码框），不泄露任何权限信息。 */
   var b = document.getElementById('navAdmin');
-  if (b){ if (isAdmin) b.classList.remove('hidden'); else b.classList.add('hidden'); }
+  if (b){ b.classList.remove('hidden'); }
 }
 function admEl(id){ return document.getElementById(id); }
   /* 安全策略：管理面板一律要求输入管理员密码，不再提供「凭手机号免密进入」。
