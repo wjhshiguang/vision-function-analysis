@@ -811,6 +811,7 @@ body.gated{overflow:hidden}
       <section id="view-report" class="hidden">
         <div class="toolbar no-print">
           <button class="btn sm" id="btnBackEdit">返回修改</button>
+          <button class="btn sm pri" id="btnRedoReport">录入复查新检查</button>
           <button class="btn sm" id="btnCopyReport">复制报告文本</button>
           <button class="btn sm" id="btnPrintReport">打印 / 存 PDF</button>
           <div class="spacer" style="flex:1"></div>
@@ -1595,8 +1596,9 @@ function assessVergence(rec){
         basis: '近距外隐斜比远距大 ' + fmtNum(exoGap) + 'Δ（>4Δ），但 NPC 与近距 BO 融合储备未见明显异常（' + supports.join('；') + '），暂按临界处理，建议随访。' });
     }
   }
-  /* 集合过度 CE：近距内隐斜 > 6Δ（正值） */
-  if (dNear !== null && dNear > 6) {
+  /* 集合过度 CE：近距内隐斜 > 6Δ（正值），且近距必须比远距更偏内（近 > 远）。
+     否则「远内斜 10Δ、近内斜 8Δ」这类近距并未比远距更偏内的情况会被误判为 CE（应属散开不足 DI） */
+  if (dNear !== null && dNear > 6 && (dDist === null || dNear > dDist)) {
     const sup = [];
     if (acaHigh) sup.push('AC/A ' + fmtNum(rec.aca, 1) + 'Δ/D > 5');
     if (nearBIbrk !== null && nearBIbrk < 17) sup.push('近距 BI 破裂点 ' + fmtNum(nearBIbrk) + 'Δ 偏低');
@@ -2070,7 +2072,25 @@ function buildPlan(rec, accom, verg, bino, reserve, dx, severity){
 }
 
 /* ============================== 16. 计算层：完整报告 ============================== */
+/* 记录规范化：把「未提供」的字段统一为 null / 'na'。
+   原因：分析层大量使用 === null 判断缺失，而缺失的字段实际可能是 undefined，
+   导致 undefined !== null 恒真 —— 最小数据集校验失效（空记录被当成完整数据）、
+   Worth 未查被当成异常、隐斜算出 NaN。规范化后缺失一律按「未查」处理。 */
+function normalizeRec(rec){
+  if (!rec) return rec;
+  const NUM_KEYS = ['age','ampOd','ampOs','ampOu','nra','pra','bcc','facOd','facOs','facOu',
+    'distPhoriaVal','nearPhoriaVal','aca','npc','vergFac','stereo','aniseikonia'];
+  NUM_KEYS.forEach(function(k){ if (rec[k] === undefined) rec[k] = null; });
+  ['worthDist','worthNear'].forEach(function(k){
+    const v = rec[k];
+    if (v === undefined || v === null || v === '') rec[k] = 'na';
+  });
+  if (rec.redFlags === undefined) rec.redFlags = [];
+  return rec;
+}
+
 function buildReport(rec){
+  rec = normalizeRec(rec);
   const warnings = validateRecord(rec);
   const rf = redFlagHits(rec);
   const accom = assessAccommodation(rec);
@@ -2137,6 +2157,7 @@ function buildReport(rec){
 }
 
 function summarize(rec){
+  rec = normalizeRec(rec);
   const rf = redFlagHits(rec);
   const md = minDataset(rec);
   let dx = [], sev = '—';
@@ -2244,7 +2265,7 @@ function renderToday(){
             '<div class="meta">结论：' + esc(dxs) + '</div>' +
           '</div>' +
           '<div class="acts">' +
-            '<button class="btn sm pri" data-act="open" data-id="' + r.id + '">打开档案</button>' +
+            '<button class="btn sm pri" data-act="open" data-id="' + r.id + '">查看报告</button>' +
             '<button class="btn sm" data-act="done" data-id="' + r.id + '">已复查（顺延 4 周）</button>' +
             '<button class="btn sm" data-act="redo" data-id="' + r.id + '">录入新检查</button>' +
           '</div>' +
@@ -2263,7 +2284,11 @@ function renderToday(){
             '<div class="nm">' + esc(r.name || '未命名') + ' <span class="pill p-info">' + t.d + ' 天后</span></div>' +
             '<div class="meta">应复查 ' + esc(r.nextReview) + (r.age !== null ? ' ｜ ' + r.age + ' 岁' : '') + '</div>' +
           '</div>' +
-          '<div class="acts"><button class="btn sm" data-act="open" data-id="' + r.id + '">打开档案</button></div>' +
+          '<div class="acts">' +
+            '<button class="btn sm pri" data-act="open" data-id="' + r.id + '">查看报告</button>' +
+            '<button class="btn sm" data-act="redo" data-id="' + r.id + '">录入新检查</button>' +
+            '<button class="btn sm" data-act="review" data-id="' + r.id + '">改复查日</button>' +
+          '</div>' +
         '</div>';
     }).join('');
   }
@@ -3021,6 +3046,17 @@ function bindEvents(){
     }
   });
 
+/* 以某个顾客为基础开始一份「新检查」：只带入基本信息，检查数据留空 */
+function doRedo(rec){
+  const blank = blankRecord();
+  blank.name = rec.name; blank.age = rec.age; blank.gender = rec.gender; blank.wear = rec.wear;
+  state.currentId = null;
+  fillForm(blank);
+  switchView('entry');
+  renderEntryBar();
+  toast('已带入顾客基本信息，请录入本次新数据');
+}
+
   /* 报告操作 */
   $('#btnBackEdit').addEventListener('click', function(){
     if (state.currentId) {
@@ -3029,6 +3065,13 @@ function bindEvents(){
     }
     switchView('entry');
     renderEntryBar();
+  });
+  /* 录入复查新检查：带入顾客基本信息，开始一份全新检查 */
+  $('#btnRedoReport').addEventListener('click', function(){
+    if (!state.currentId) { toast('当前没有打开的报告'); return; }
+    const rec = findRecord(state.currentId);
+    if (!rec) { toast('档案不存在，可能已被删除'); return; }
+    doRedo(rec);
   });
   $('#btnCopyReport').addEventListener('click', function(){
     if (!state.report) { toast('还没有报告可以复制'); return; }
@@ -3081,13 +3124,7 @@ function bindEvents(){
       switchView('entry');
       renderEntryBar();
     } else if (act === 'redo') {
-      const blank = blankRecord();
-      blank.name = rec.name; blank.age = rec.age; blank.gender = rec.gender; blank.wear = rec.wear;
-      state.currentId = null;
-      fillForm(blank);
-      switchView('entry');
-      renderEntryBar();
-      toast('已带入顾客基本信息，请录入本次新数据');
+      doRedo(rec);
     } else if (act === 'done') {
       rec.nextReview = addDays(todayStr(), 28);
       saveRecords(); refreshLists(); toast('已标记复查完成，下次复查 ' + rec.nextReview);
