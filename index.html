@@ -108,6 +108,13 @@ svg{display:block}
 .btn.dan:hover{background:var(--danger-l)}
 .btn.sm{min-height:32px;padding:0 10px;font-size:12.5px;border-radius:8px}
 .btn.blk{width:100%}
+/* 录入页分区跳转条：长表单不用来回滚 */
+.jumpbar{display:flex;gap:6px;overflow-x:auto;padding:2px 0 9px;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.jumpbar::-webkit-scrollbar{display:none}
+.jumpbar .jump{flex:0 0 auto;min-height:34px;padding:0 12px;border-radius:999px;border:1px solid var(--line);
+  background:#fff;font-size:12.5px;color:var(--ink2);cursor:pointer;white-space:nowrap;font-family:inherit}
+.jumpbar .jump:hover{border-color:var(--primary);color:var(--primary);background:var(--primary-l)}
+.jumpbar .jump:active{transform:translateY(1px)}
 .btn[disabled]{opacity:.5;cursor:not-allowed}
 
 /* ---------- 表单 ---------- */
@@ -293,6 +300,11 @@ body.pk-open{overflow:hidden}
   .topbar .btn svg{width:14px;height:14px}
 
   .content{padding:12px 12px calc(92px + env(safe-area-inset-bottom));gap:12px}
+
+  /* ---- 小按钮触控区补齐到 44px（列表里的「查看报告 / 已复查 / 改复查日」等）---- */
+  .btn.sm{min-height:44px;padding:0 14px;font-size:14px}
+  .btn.sm svg{width:14px;height:14px}
+  .jumpbar .jump{min-height:40px;padding:0 14px;font-size:13.5px}
 
   /* ---- 卡片更紧凑，减少无谓留白 ---- */
   .card{padding:13px;border-radius:12px}
@@ -617,8 +629,10 @@ body.gated{overflow:hidden}
         <div class="card flat" style="padding:11px 14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
           <span class="pill p-gray" id="entryModeTag">新建检查</span>
           <span style="font-size:12px;color:var(--ink3)" id="entryModeHint">提交后将新增一条档案</span>
+          <button type="button" class="btn sm" id="btnRestoreDraft" style="display:none;margin-left:auto">恢复上次未填完的录入</button>
           <button type="button" class="btn sm" id="btnForceNew" style="margin-left:auto">清空表单，新建一条</button>
         </div>
+        <div class="jumpbar no-print" id="entryJump"></div>
         <form id="entryForm" autocomplete="off">
           <div class="card">
             <div class="card-h">
@@ -793,9 +807,9 @@ body.gated{overflow:hidden}
 
           <div class="card flat">
             <div style="display:flex;gap:10px;flex-wrap:wrap">
-              <button type="submit" class="btn pri" style="flex:1;min-width:180px">
+              <button type="submit" class="btn pri" id="btnSubmit" style="flex:1;min-width:180px">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.1" stroke-linecap="round"><path d="M4.5 12.5l5 5 10-11"/></svg>
-                开始自动分析并生成报告
+                <span id="btnSubmitLabel">开始自动分析并生成报告</span>
               </button>
               <button type="button" class="btn" id="btnFillDemo">填入演示数据</button>
               <button type="button" class="btn dan" id="btnResetForm">清空表单</button>
@@ -810,6 +824,7 @@ body.gated{overflow:hidden}
       <!-- ========== 视图 3：分析报告 ========== -->
       <section id="view-report" class="hidden">
         <div class="toolbar no-print">
+          <button class="btn sm" id="btnBackList">返回列表</button>
           <button class="btn sm" id="btnBackEdit">返回修改</button>
           <button class="btn sm pri" id="btnRedoReport">录入复查新检查</button>
           <button class="btn sm" id="btnCopyReport">复制报告文本</button>
@@ -966,6 +981,7 @@ body.gated{overflow:hidden}
 /* ============================== 0. 通用工具 ============================== */
 const LS_RECORDS = 'wb_vision_records_v1';
 const LS_META    = 'wb_vision_meta_v1';
+const LS_DRAFT   = 'wb_vision_draft_v1';   /* 未提交的录入草稿，防止填一半切走 / 刷新丢失 */
 const APP_VERSION = '1.0.0';
 
 /* ============================== 0.1 登录门禁配置（管理员可改） ============================== */
@@ -996,7 +1012,8 @@ const state = {
   archFilter: 'all',
   archQuery: '',
   installEvt: null,
-  booted: false
+  booted: false,
+  reportFrom: 'archive'  /* 报告页「返回列表」要回到的视图 */
 };
 
 function $(sel, root){ return (root || document).querySelector(sel); }
@@ -1054,7 +1071,16 @@ function toast(msg){
   clearTimeout(toast._t);
   toast._t = setTimeout(function(){ t.classList.remove('show'); }, 2200);
 }
-function confirmBox(title, text, onOk){
+/* 防抖：连续触发（如搜索框逐字输入）只在停顿 wait 毫秒后执行一次，避免每敲一个字就重排整个列表 */
+function debounce(fn, wait){
+  let t = null;
+  return function(){
+    const args = arguments, self = this;
+    clearTimeout(t);
+    t = setTimeout(function(){ fn.apply(self, args); }, wait || 200);
+  };
+}
+function confirmBox(title, text, onOk, onCancel){
   $('#modalTitle').textContent = title;
   $('#modalText').innerHTML = text;
   const m = $('#modal');
@@ -1062,7 +1088,7 @@ function confirmBox(title, text, onOk){
   const ok = $('#modalOk'), cancel = $('#modalCancel');
   function close(){ m.classList.remove('show'); ok.removeEventListener('click', yes); cancel.removeEventListener('click', no); }
   function yes(){ close(); onOk(); }
-  function no(){ close(); }
+  function no(){ close(); if (typeof onCancel === 'function') onCancel(); }
   ok.addEventListener('click', yes);
   cancel.addEventListener('click', no);
 }
@@ -2602,10 +2628,40 @@ function renderEntryBar(){
     tag.textContent = '新建检查';
     hint.textContent = '提交后将新增一条档案';
   }
+  /* 有草稿且当前不是「修改已有档案」时，才显示「恢复上次未填完的录入」 */
+  const rd = $('#btnRestoreDraft'), fn = $('#btnForceNew');
+  const draft = rec ? null : storage.read(LS_DRAFT, null);
+  if (rd) {
+    rd.style.display = draft ? '' : 'none';
+    rd.style.marginLeft = draft ? 'auto' : '0';
+  }
+  if (fn) fn.style.marginLeft = draft ? '0' : 'auto';
 }
+/* 录入页分区跳转条：自动扫描表单里的分区标题生成，长表单不用来回滚找字段 */
+function buildEntryJump(){
+  const bar = $('#entryJump');
+  if (!bar) return;
+  const cards = $$('#entryForm .card').filter(function(c){ return !!$('h3', c); });
+  if (cards.length < 2) { bar.innerHTML = ''; return; }
+  bar.innerHTML = cards.map(function(c, i){
+    const raw = $('h3', c).textContent.trim();
+    const t = raw.replace(/^[一二三四五六七八九十]+、\s*/, '');
+    return '<button type="button" class="jump" data-jump="' + i + '">' + esc(t) + '</button>';
+  }).join('');
+  bar.onclick = function(e){
+    const b = (e.target && e.target.closest) ? e.target.closest('.jump') : null;
+    if (!b) return;
+    const c = cards[Number(b.getAttribute('data-jump'))];
+    if (!c) return;
+    try { c.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (err) { try { c.scrollIntoView(); } catch (e2) {} }
+  };
+}
+
 /* 统一的「打开录入」入口：isNew=true 时清空表单开新档 */
 function showEntry(isNew){
   if (isNew) {
+    /* 清空前先把当前内容存成草稿，切走视图再回来不至于白填一遍 */
+    if (formHasContent()) saveDraft();
     state.currentId = null;
     fillForm(blankRecord());
   }
@@ -2893,17 +2949,98 @@ function collectForm(){
   r.analysis = null;
   return r;
 }
+/* ---------------- 录入草稿：填一半切走 / 误刷新也不丢 ---------------- */
+/* 只有这些字段有值时才认为「这是一份值得保存的草稿」，避免空表单也被反复写入 */
+const DRAFT_SIGNIFICANT = ['name','age','odSph','osSph','odBcva','osBcva','ampOd','ampOs','ampOu','nra','pra','bcc',
+  'facOd','facOs','facOu','distPhoriaVal','nearPhoriaVal','aca','npc','stereo','note','symDuration','symWorst','nextReview'];
+function formSnapshot(){
+  const fd = new FormData($('#entryForm'));
+  const obj = { __id: state.currentId || '', __at: Date.now(), __chk: {}, __rf: [] };
+  FORM_FIELDS.forEach(function(k){
+    const v = fd.get(k);
+    obj[k] = (v === null || v === undefined) ? '' : String(v);
+  });
+  Object.keys(CHK_MAP).forEach(function(nm){ obj.__chk[nm] = !!fd.get(nm); });
+  $$('#entryForm input[name^="rf_"]').forEach(function(c){ if (c.checked) obj.__rf.push(c.name); });
+  return obj;
+}
+function formHasContent(){
+  const fd = new FormData($('#entryForm'));
+  let has = false;
+  DRAFT_SIGNIFICANT.forEach(function(k){
+    const v = fd.get(k);
+    if (v !== null && String(v).trim() !== '') has = true;
+  });
+  if (!has) Object.keys(CHK_MAP).forEach(function(nm){ if (fd.get(nm)) has = true; });
+  if (!has) $$('#entryForm input[name^="rf_"]').forEach(function(c){ if (c.checked) has = true; });
+  return has;
+}
+function saveDraft(){
+  const f = $('#entryForm');
+  if (!f) return;
+  if (!formHasContent()) { clearDraft(); return; }
+  storage.write(LS_DRAFT, formSnapshot());
+}
+const saveDraftSoon = debounce(saveDraft, 700);
+function clearDraft(){ storage.remove(LS_DRAFT); }
+function applySnapshot(s){
+  if (!s) return;
+  FORM_FIELDS.forEach(function(k){
+    const el = $('#entryForm [name="' + k + '"]');
+    if (el && s[k] !== undefined) el.value = (s[k] === null ? '' : s[k]);
+  });
+  Object.keys(CHK_MAP).forEach(function(nm){
+    const el = $('#entryForm [name="' + nm + '"]');
+    if (el) el.checked = !!(s.__chk && s.__chk[nm]);
+  });
+  $$('#entryForm input[name^="rf_"]').forEach(function(c){
+    c.checked = !!(s.__rf && s.__rf.indexOf(c.name) >= 0);
+  });
+  $$('#entryForm .chk').forEach(function(l){
+    const inp = $('input', l);
+    l.classList.toggle('on', !!(inp && inp.checked));
+  });
+  state.currentId = s.__id || null;
+}
+/* 启动时静默接上上次没填完的内容（此时表单一定是空的，不会覆盖任何东西） */
+function restoreDraftSilent(){
+  const s = storage.read(LS_DRAFT, null);
+  if (!s) return;
+  if (formHasContent()) return;
+  applySnapshot(s);
+  renderEntryBar();
+  toast('已恢复上次未完成的录入（不需要可点「清空表单」）');
+}
+/* 录入中途被清空后，手动把草稿填回来 */
+function restoreDraftManual(){
+  const s = storage.read(LS_DRAFT, null);
+  if (!s) { toast('没有可恢复的草稿'); renderEntryBar(); return; }
+  applySnapshot(s);
+  renderEntryBar();
+  const who = (s.name || '').trim();
+  toast(who ? '已恢复草稿：' + who : '已恢复上次未完成的录入');
+}
+
 function validateForm(){
   const problems = [];
   const nameEl = $('#entryForm [name="name"]');
   const ageEl = $('#entryForm [name="age"]');
   $$('#entryForm .field').forEach(function(f){ f.classList.remove('invalid'); });
   if (!nameEl.value.trim()) { problems.push('请填写顾客姓名 / 编号'); nameEl.closest('.field').classList.add('invalid'); }
-  if (!ageEl.value.trim()) { problems.push('请填写年龄（正常参考值需要按年龄适配）'); ageEl.closest('.field').classList.add('invalid'); }
+  const ageRaw = (ageEl.value || '').trim();
+  if (!ageRaw) { problems.push('请填写年龄（正常参考值需要按年龄适配）'); ageEl.closest('.field').classList.add('invalid'); }
+  else {
+    const av = Number(ageRaw);
+    if (!isFinite(av) || av < 1 || av > 99) { problems.push('年龄请填 1~99 之间的周岁整数'); ageEl.closest('.field').classList.add('invalid'); }
+  }
   if (problems.length) {
-    problems.forEach(function(p){ toast(p); });
-    const first = $('#entryForm .field.invalid input');
-    if (first) first.focus();
+    /* 只弹一条提示（多条 toast 会互相顶掉），并把页面滚到第一个出错的字段 */
+    toast(problems[0] + (problems.length > 1 ? '（还有 ' + (problems.length - 1) + ' 项待补）' : ''));
+    const first = $('#entryForm .field.invalid input, #entryForm .field.invalid select');
+    if (first) {
+      try { first.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (e) { try { first.scrollIntoView(); } catch (e2) {} }
+      try { first.focus({ preventScroll: true }); } catch (e) { first.focus(); }
+    }
     return false;
   }
   return true;
@@ -3008,35 +3145,78 @@ function bindEvents(){
     b.addEventListener('click', function(){
       const v = b.getAttribute('data-view');
       if (!v) return;   /* 非视图按钮（如「管理」）由各自的处理函数负责，不参与视图切换 */
-      /* 从其他视图进入「检查录入」时，始终开启一条新档案，避免静默覆盖上一位顾客的档案 */
-      if (v === 'entry' && state.view !== 'entry') { showEntry(true); return; }
+      /* 从其他视图进入「检查录入」：
+         正在修改某条档案时强制开新档（避免静默覆盖），否则保留当前表单（含刚恢复的草稿） */
+      if (v === 'entry' && state.view !== 'entry') { showEntry(!!state.currentId); return; }
       switchView(v);
     });
   });
   $('#btnNewTop').addEventListener('click', function(){ showEntry(true); });
   $('#btnForceNew').addEventListener('click', function(){ showEntry(true); toast('已清空表单，开始新建检查'); });
+  $('#btnRestoreDraft').addEventListener('click', restoreDraftManual);
 
   /* 录入表单 */
+  /* 提交加锁：分析是同步计算，但移动端连点会重复建档案，这里统一挡掉 */
+  let submitting = false;
   $('#entryForm').addEventListener('submit', function(e){
     e.preventDefault();
+    if (submitting) return;
     if (!validateForm()) return;
-    const rec = collectForm();
-    const report = buildReport(rec);
-    if (!rec.nextReview) rec.nextReview = report.suggestedReview;
-    state.currentId = rec.id;
-    rec.analysis = summarize(rec);
-    upsertRecord(rec);
-    state.report = report;
-    switchView('report');
-    renderReport(state.report);
-    refreshLists();
-    if (report.redFlag.hit) toast('已生成报告：命中红旗征，建议优先转诊');
-    else toast('已生成分析报告并存入档案');
+    const btn = $('#btnSubmit'), lb = $('#btnSubmitLabel');
+    submitting = true;
+    if (btn) btn.disabled = true;
+    if (lb) lb.textContent = '正在分析…';
+    try {
+      const rec = collectForm();
+      const report = buildReport(rec);
+      if (!rec.nextReview) rec.nextReview = report.suggestedReview;
+      state.currentId = rec.id;
+      rec.analysis = summarize(rec);
+      upsertRecord(rec);
+      state.report = report;
+      state.reportFrom = 'archive';
+      clearDraft();               /* 已入库，草稿可以丢掉了 */
+      switchView('report');
+      renderReport(state.report);
+      refreshLists();
+      if (report.redFlag.hit) toast('已生成报告：命中红旗征，建议优先转诊');
+      else toast('已生成分析报告并存入档案');
+    } catch (err) {
+      console.error('生成报告失败', err);
+      toast('生成报告时出错：' + (err && err.message ? err.message : '未知错误') + '（数据未丢失，可重试）');
+    } finally {
+      submitting = false;
+      if (btn) btn.disabled = false;
+      if (lb) lb.textContent = '开始自动分析并生成报告';
+    }
   });
   $('#btnFillDemo').addEventListener('click', fillDemoForm);
   $('#btnResetForm').addEventListener('click', function(){
     showEntry(true);
+    clearDraft();
     toast('表单已清空');
+  });
+  /* 边填边存草稿：切走视图 / 误刷新后回来还能接着填 */
+  $('#entryForm').addEventListener('input', saveDraftSoon);
+  $('#entryForm').addEventListener('change', saveDraftSoon);
+  /* 回车跳到下一个字段；在最后一个字段回车仍然直接提交 */
+  $('#entryForm').addEventListener('keydown', function(e){
+    if (e.key !== 'Enter') return;
+    const pk = $('#picker');
+    if (pk && pk.classList.contains('show')) return;      /* 数值选择器打开时不抢回车 */
+    const t = e.target;
+    if (!t || !t.name || !t.form) return;
+    if (t.tagName === 'TEXTAREA') return;                  /* 备注里回车要换行 */
+    if (t.type === 'checkbox' || t.type === 'submit' || t.type === 'button' || t.type === 'radio') return;
+    if (t.classList && t.classList.contains('pickable')) return;
+    const els = $$('#entryForm input:not([type=hidden]):not([type=checkbox]):not([type=radio]), #entryForm select, #entryForm textarea')
+      .filter(function(el){ return !el.disabled && !el.classList.contains('pickable') && el.offsetParent !== null; });
+    const i = els.indexOf(t);
+    if (i < 0 || i + 1 >= els.length) return;              /* 不在序列里 / 已是最后一项 → 保持默认的提交行为 */
+    e.preventDefault();
+    const nx = els[i + 1];
+    nx.focus();
+    if (nx.select) { try { nx.select(); } catch (err) {} }
   });
   $('#entryForm').addEventListener('change', function(e){
     const t = e.target;
@@ -3058,6 +3238,10 @@ function doRedo(rec){
 }
 
   /* 报告操作 */
+  /* 返回列表：回到打开这份报告的地方（今天要处理 / 顾客档案），不用再点导航绕一圈 */
+  $('#btnBackList').addEventListener('click', function(){
+    switchView(state.reportFrom === 'today' ? 'today' : 'archive');
+  });
   $('#btnBackEdit').addEventListener('click', function(){
     if (state.currentId) {
       const rec = findRecord(state.currentId);
@@ -3087,7 +3271,12 @@ function doRedo(rec){
   });
 
   /* 档案 */
-  $('#archSearch').addEventListener('input', function(e){ state.archQuery = e.target.value; renderArchive(); });
+  /* 搜索防抖：逐字输入时不再每敲一个字就重建整个列表 */
+  const renderArchiveSoon = debounce(function(){ renderArchive(); }, 180);
+  $('#archSearch').addEventListener('input', function(e){ state.archQuery = e.target.value; renderArchiveSoon(); });
+  $('#archSearch').addEventListener('keydown', function(e){
+    if (e.key === 'Escape') { e.target.value = ''; state.archQuery = ''; renderArchive(); }
+  });
   $('#archFilter').addEventListener('change', function(e){ state.archFilter = e.target.value; renderArchive(); });
   $('#btnExport').addEventListener('click', exportJSON);
   $('#btnExportJson').addEventListener('click', exportJSON);
@@ -3114,6 +3303,7 @@ function doRedo(rec){
     if (!rec) { toast('记录不存在，可能已被删除'); refreshLists(); return; }
 
     if (act === 'open') {
+      state.reportFrom = (state.view === 'today') ? 'today' : 'archive';
       state.currentId = rec.id;
       state.report = buildReport(rec);
       switchView('report');
@@ -3554,6 +3744,7 @@ function bootApp(){
   state.archQuery = '';
   bindEvents();
   setupPickers();
+  buildEntryJump();
   let startView = 'today';
   try {
     const qp = new URLSearchParams(location.search);
@@ -3562,6 +3753,7 @@ function bootApp(){
   } catch (e) { startView = 'today'; }
   switchView(startView);
   refreshAll();
+  restoreDraftSilent();   /* 上次没填完的录入，开页面时自动接上 */
   hideLoginGate();
   registerSW();
 }
