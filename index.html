@@ -448,6 +448,11 @@ body.gated{overflow:hidden}
 .adm-tag.on{background:var(--ok-l);color:var(--ok)}
 .adm-tag.off{background:var(--danger-l);color:var(--danger)}
 .adm-empty{font-size:13px;color:var(--ink3);padding:12px 0;text-align:center}
+.adm-log-item{display:flex;align-items:baseline;gap:8px;font-size:12.5px;line-height:1.5;border-bottom:1px dashed var(--line);padding:6px 2px}
+.adm-log-item:last-child{border-bottom:none}
+.adm-log-item .t{font-family:ui-monospace,Menlo,Consolas,monospace;color:var(--ink3);flex:0 0 auto;white-space:nowrap}
+.adm-log-item .a{flex:0 0 auto;font-weight:700;color:var(--primary-d)}
+.adm-log-item .d{color:var(--ink2);flex:1;min-width:0;word-break:break-all}
 #admPass{width:100%;min-height:46px;padding:0 14px;border:1px solid var(--line);border-radius:12px;font-size:16px;background:#FBFDFD;box-sizing:border-box}
 #admPass:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-l)}
 @media(max-width:520px){ .adm-form input{width:100%} .adm-fld.f-code,.adm-fld.f-note{flex:1 1 100%} .adm-fld.f-num{flex:1 1 40%} .adm-fld.f-long{flex:1 1 40%} .adm-fld.f-btn{flex:1 1 100%} .adm-fld.f-btn>span{display:none} }
@@ -937,6 +942,12 @@ body.gated{overflow:hidden}
             <button class="btn sm" id="admChangePass" type="button">修改</button>
           </div>
           <div class="adm-err" id="admPassErr"></div>
+        </div>
+
+        <div class="adm-sec">
+          <div class="adm-sec-h">操作日志（最近 200 条）<span class="sp"></span>
+            <button class="btn sm" id="admReloadLog" type="button">刷新</button></div>
+          <div class="adm-list" id="admLog"><div class="adm-empty">加载中…</div></div>
         </div>
       </div>
     </div>
@@ -3337,6 +3348,27 @@ function adminLogin(){
     else err.textContent = d.msg || '密码错误';
   });
 }
+function admLog(action, detail){
+  try { cloudRpc('admin_log_write', { p_token: adminToken, p_action: action, p_detail: detail }); } catch (e) {}
+}
+function adminLoadLogs(){
+  var box = admEl('admLog');
+  if (!box) return;
+  cloudRpc('admin_logs', { p_token: adminToken }).then(function(res){
+    var d = res.data || {};
+    if (!d.ok){ box.innerHTML = '<div class="adm-empty">暂无日志</div>'; return; }
+    var logs = d.logs || [];
+    if (!logs.length){ box.innerHTML = '<div class="adm-empty">暂无操作记录</div>'; return; }
+    var h = '';
+    logs.forEach(function(l){
+      var t = String(l.ts || '').replace('T', ' ').slice(0, 19);
+      h += '<div class="adm-log-item"><span class="t">' + esc(t) + '</span>' +
+           '<span class="a">' + esc(l.action) + '</span>' +
+           (l.detail ? '<span class="d">' + esc(l.detail) + '</span>' : '') + '</div>';
+    });
+    box.innerHTML = h;
+  });
+}
 function adminLoad(){
   admEl('admUsers').innerHTML = '<div class="adm-empty">加载中…</div>';
   admEl('admCodes').innerHTML = '<div class="adm-empty">加载中…</div>';
@@ -3346,6 +3378,7 @@ function adminLoad(){
     if (d.ok !== true){ admExpired(d.msg); return; }
     renderAdminUsers(d.users || []);
     renderAdminCodes(d.codes || []);
+    adminLoadLogs();
   });
 }
 function renderAdminUsers(list){
@@ -3395,15 +3428,17 @@ function renderAdminCodes(list){
     b.textContent = '已复制'; setTimeout(function(){ b.textContent = '复制'; }, 1200);
   }; });
 }
-function admSetUser(phone, active){ cloudRpc('admin_set_user', { p_token: adminToken, p_phone: phone, p_active: active }).then(adminLoad); }
+function admSetUser(phone, active){ admLog('用户状态', phone + ' → ' + (active ? '启用' : '停用/踢出')); cloudRpc('admin_set_user', { p_token: adminToken, p_phone: phone, p_active: active }).then(adminLoad); }
 function admDelUser(phone){
   if (!confirm('确定彻底删除用户 ' + phone + '？删除后需重新用邀请码登录。')) return;
+  admLog('删除用户', phone);
   cloudRpc('admin_del_user', { p_token: adminToken, p_phone: phone }).then(adminLoad);
 }
-function admSetCode(code, active){ cloudRpc('admin_set_code', { p_token: adminToken, p_code: code, p_active: active }).then(adminLoad); }
+function admSetCode(code, active){ admLog('邀请码状态', code + ' → ' + (active ? '启用' : '停用')); cloudRpc('admin_set_code', { p_token: adminToken, p_code: code, p_active: active }).then(adminLoad); }
 function admDelCode(code){
   if (String(code).toUpperCase() === 'ADMIN-XIULI'){ alert('这是你自己的管理员码，不能删除。需要停用请点「停用」。'); return; }
   if (!confirm('确定删除邀请码「' + code + '」？\n删除后此码立即失效且无法恢复，已经用它登录过的人不受影响。')) return;
+  admLog('删除邀请码', code);
   cloudRpc('admin_del_code', { p_token: adminToken, p_code: code }).then(function(res){
     var d = (res && res.data) || {};
     if (d.ok !== true) alert(d.msg || '删除失败');
@@ -3422,7 +3457,10 @@ function admAddCode(){
   err.textContent = '';
   cloudRpc('admin_add_code', { p_token: adminToken, p_code: code, p_max: max, p_days: days, p_note: note }).then(function(res){
     var d = (res && res.data) || {};
-    if (d.ok === true){ admEl('admNewCode').value = ''; admEl('admNewNote').value = ''; if (longChk) longChk.checked = false; adminLoad(); }
+    if (d.ok === true){
+      admLog('新建邀请码', code + (isLong ? '（长期有效）' : ('（' + days + ' 天）')) + (note ? ' 备注:' + note : ''));
+      admEl('admNewCode').value = ''; admEl('admNewNote').value = ''; if (longChk) longChk.checked = false; adminLoad();
+    }
     else err.textContent = d.msg || '创建失败';
   });
 }
@@ -3431,7 +3469,7 @@ function admChangePass(){
   if (!np || np.length < 6){ err.textContent = '新密码至少 6 位'; return; }
   cloudRpc('admin_change_pass', { p_token: adminToken, p_new: np }).then(function(res){
     var d = (res && res.data) || {};
-    if (d.ok === true){ err.textContent = ''; admEl('admNewPass').value = ''; alert('管理员密码已修改'); }
+    if (d.ok === true){ err.textContent = ''; admEl('admNewPass').value = ''; admLog('修改管理员密码', ''); alert('管理员密码已修改'); }
     else err.textContent = d.msg || '修改失败';
   });
 }
@@ -3446,6 +3484,7 @@ function bindAdmin(){
   b = admEl('admClose');      if (b) b.onclick  = closeAdmin;
   b = admEl('admLoginBtn');   if (b) b.onclick  = adminLogin;
   b = admEl('admReload');     if (b) b.onclick  = adminLoad;
+  b = admEl('admReloadLog');  if (b) b.onclick  = adminLoadLogs;
   b = admEl('admAdd');        if (b) b.onclick  = admAddCode;
   b = admEl('admRand');       if (b) b.onclick  = randAdmCode;
   b = admEl('admNewLong');    if (b) b.addEventListener('change', function(){ var d = admEl('admNewDays'); if (d){ if (b.checked){ d.disabled = true; d.value = ''; } else { d.disabled = false; if (!d.value) d.value = '30'; } } });
