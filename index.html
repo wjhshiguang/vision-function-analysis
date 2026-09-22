@@ -1134,6 +1134,8 @@ function openModal(opt){
     ok.removeEventListener('click', yes);
     cancel.removeEventListener('click', no);
     if (inp) inp.removeEventListener('keydown', onKey);
+    /* 复位输入框区域，避免关闭后残留空输入框影响后续（如「改复查日」）弹窗 */
+    if (fld) fld.style.display = 'none';
   }
   function yes(){
     let v = null;
@@ -1282,6 +1284,10 @@ function loadRecords(){
     const rec = Object.assign(blankRecord(), r);
     /* 兼容旧数据：PRA 统一按负值口径存储（旧版曾按正值录入） */
     if (rec.pra !== null && rec.pra > 0) rec.pra = -Math.abs(rec.pra);
+    /* 旧档案可能未存 analysis：缺失时重算，避免档案列表显示「—」、且不参与「中重度」等筛选 */
+    if (!rec.analysis || typeof rec.analysis !== 'object') {
+      try { rec.analysis = summarize(rec); } catch (e) { rec.analysis = { severity: '—', dx: [], redFlag: false }; }
+    }
     return rec;
   });
 }
