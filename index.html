@@ -3672,8 +3672,8 @@ function admEl(id){ return document.getElementById(id); }
     if (adminToken){ showAdminBody(); adminLoad(); return; }
     showPassGate();   // 永远走密码框，不再免密
   }
-function closeAdmin(){ var m = admEl('adminModal'); if (m) m.classList.add('hidden'); }
-function showAdminBody(){ admEl('admLogin').classList.add('hidden'); admEl('admBody').classList.remove('hidden'); }
+function closeAdmin(){ var m = admEl('adminModal'); if (m) m.classList.add('hidden'); stopAdminLive(); }
+function showAdminBody(){ admEl('admLogin').classList.add('hidden'); admEl('admBody').classList.remove('hidden'); startAdminLive(); }
 function admExpired(msg){
   adminToken = '';
   admEl('admLogin').classList.remove('hidden');
@@ -3724,14 +3724,51 @@ function adminLoad(){
     adminLoadLogs();
   });
 }
+/* 最近登录时间：服务端 last_seen 为 UTC，需转本地时区并以相对时间实时显示 */
+var adminCache = { users: [], codes: [] };
+var adminTimer = null;
+var adminTickCount = 0;
+function parseUtc(iso){
+  var s = String(iso || '').trim();
+  if (!s) return null;
+  /* 服务端 TIMESTAMPTZ 可能返回带 Z / 偏移量 或纯本地字符串；无时区标记时按 UTC 处理 */
+  if (!/[zZ]$/.test(s) && !/[+\-]\d{2}:?\d{2}$/.test(s)) s = s.replace(/\.\d+$/, '') + 'Z';
+  var d = new Date(s);
+  return isNaN(d.getTime()) ? null : d;
+}
+function fmtLastSeen(iso){
+  var d = parseUtc(iso);
+  if (!d) return '从未登录';
+  var diff = (new Date().getTime() - d.getTime()) / 1000;   /* 本地时区下的真实间隔（秒） */
+  if (diff < 0) diff = 0;
+  if (diff < 60) return '刚刚';
+  if (diff < 3600) return Math.floor(diff / 60) + '分钟前';
+  if (diff < 86400) return Math.floor(diff / 3600) + '小时前';
+  if (diff < 604800) return Math.floor(diff / 86400) + '天前';
+  var p = function(n){ return (n < 10 ? '0' : '') + n; };
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+}
+/* 管理面板打开期间定时刷新：奇数次用缓存重渲相对时间（不请求服务器），
+   偶数次（约 60s）重新拉取服务端数据，保证「最近」时间实时准确；关闭面板即停 */
+function startAdminLive(){
+  if (adminTimer) clearInterval(adminTimer);
+  adminTickCount = 0;
+  adminTimer = setInterval(function(){
+    adminTickCount++;
+    if (adminTickCount % 2 === 0){ if (adminToken) adminLoad(); }
+    else if (adminCache.users.length){ renderAdminUsers(adminCache.users); }
+  }, 30000);
+}
+function stopAdminLive(){ if (adminTimer){ clearInterval(adminTimer); adminTimer = null; } }
 function renderAdminUsers(list){
+  adminCache.users = list;
   var box = admEl('admUsers');
   if (!list.length){ box.innerHTML = '<div class="adm-empty">还没有用户</div>'; return; }
   var h = '';
   list.forEach(function(u){
     h += '<div class="adm-item">' +
       '<div class="grow"><div class="mono">' + esc(u.phone) + (u.is_admin ? ' <span class="adm-tag on">管理员</span>' : '') + '</div>' +
-      '<div class="meta">码 ' + esc(u.code || '—') + ' · 最近 ' + esc(String(u.last_seen || '').slice(0,16).replace('T',' ')) + '</div></div>' +
+      '<div class="meta">码 ' + esc(u.code || '—') + ' · 最近 ' + esc(fmtLastSeen(u.last_seen)) + '</div></div>' +
       '<span class="adm-tag ' + (u.active ? 'on">正常' : 'off">已停用') + '</span>' +
       (u.active
         ? '<button class="btn sm dan" data-admkick="' + esc(u.phone) + '">停用</button>'
