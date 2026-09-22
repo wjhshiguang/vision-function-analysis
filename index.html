@@ -3500,7 +3500,7 @@ function renderUserbox(){
 function openRename(){
   promptBox('修改我的名称',
     '这个名称用于区分操作者，只保存在本机浏览器，不会上传。<br>留空保存即恢复显示手机号。',
-    { value: getMyName(), placeholder: '如：秀莉', required: false, okText: '保存' },
+    { value: getMyName(), placeholder: '如：王景辉', required: false, okText: '保存' },
     function(v){
       setMyName(v);
       renderUserbox();
