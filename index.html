@@ -52,10 +52,21 @@ svg{display:block}
 .brand .logo{width:38px;height:38px;border-radius:11px;background:linear-gradient(145deg,#0E8A8D,#0A5C70);display:flex;align-items:center;justify-content:center;flex:0 0 38px}
 .brand h1{font-size:15px;margin:0;font-weight:650;letter-spacing:.2px}
 .brand p{margin:1px 0 0;font-size:11.5px;color:var(--ink3)}
-.userbox{display:flex;align-items:center;gap:10px;background:var(--primary-l);border-radius:var(--radius-s);padding:10px 12px}
+.userbox{display:flex;align-items:center;gap:10px;background:var(--primary-l);border-radius:var(--radius-s);padding:10px 12px;
+  width:100%;border:0;cursor:pointer;text-align:left;font-family:inherit;transition:.15s}
+.userbox:hover{background:#DCEFEF}
+.userbox:active{transform:translateY(1px)}
 .userbox .av{width:32px;height:32px;border-radius:50%;background:var(--card);color:var(--primary-d);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex:0 0 32px}
-.userbox .nm{font-size:13px;font-weight:600;line-height:1.3}
-.userbox .sub{font-size:11px;color:var(--ink2)}
+.userbox .ub-txt{min-width:0;flex:1}
+.userbox .nm{font-size:13px;font-weight:600;line-height:1.3;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.userbox .sub{font-size:11px;color:var(--ink2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.userbox .ub-edit{color:var(--ink3);flex:0 0 14px}
+.userbox:hover .ub-edit{color:var(--primary)}
+/* 手机端没有侧边栏，用顶栏的小头像作为「修改名称」入口 */
+.btn.who{display:none;align-items:center;gap:6px;padding:0 10px}
+.btn.who .avm{width:22px;height:22px;border-radius:50%;background:var(--primary-l);color:var(--primary-d);
+  display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex:0 0 22px}
+.btn.who .wlab{max-width:76px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .nav{display:flex;flex-direction:column;gap:4px;flex:1}
 .nav button{
   display:flex;align-items:center;gap:10px;width:100%;padding:10px 12px;border:0;background:transparent;
@@ -250,6 +261,8 @@ table.tbl .src{font-size:11px;color:var(--ink3)}
 #modal h3{margin:0 0 8px;font-size:16px}
 #modal p{margin:0 0 18px;font-size:13.5px;color:var(--ink2);line-height:1.7}
 #modal .row{display:flex;gap:10px;justify-content:flex-end}
+#modal input{width:100%;min-height:44px;padding:9px 12px;border:1px solid var(--line);border-radius:10px;font-size:16px;background:#FCFDFD;outline:none;font-family:inherit}
+#modal input:focus{border-color:var(--primary);background:#fff;box-shadow:0 0 0 3px var(--primary-l)}
 
 /* ---------- 滚轮选择器（类 iOS 闹钟） ---------- */
 .field input.pickable{cursor:pointer;background:#fff;color:var(--ink);font-variant-numeric:tabular-nums}
@@ -298,6 +311,9 @@ body.pk-open{overflow:hidden}
   .topbar .spacer{display:none}
   .topbar .btn{flex:0 0 auto;padding:0 12px;min-height:44px;font-size:13px}
   .topbar .btn svg{width:14px;height:14px}
+  .btn.who{display:inline-flex}
+  .topbar .btn.who{padding:0 9px;gap:5px}
+  .topbar .btn.who .wlab{max-width:56px;font-size:12.5px}
 
   .content{padding:12px 12px calc(92px + env(safe-area-inset-bottom));gap:12px}
 
@@ -522,13 +538,16 @@ body.gated{overflow:hidden}
       </div>
     </div>
 
-    <div class="userbox">
-      <div class="av">王</div>
-      <div>
-        <div class="nm">王景辉</div>
-        <div class="sub">视光师 · 精功眼镜门店</div>
+    <button type="button" class="userbox" id="userBox" title="点击修改我的名称">
+      <div class="av" id="userAv">我</div>
+      <div class="ub-txt">
+        <div class="nm" id="userName">未登录</div>
+        <div class="sub" id="userSub">视光师</div>
       </div>
-    </div>
+      <svg class="ub-edit" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4.5 19.5h3.2L18.9 8.3a1.7 1.7 0 000-2.4l-.8-.8a1.7 1.7 0 00-2.4 0L4.5 16.3v3.2z"/><path d="M14.6 6.3l3.1 3.1"/>
+      </svg>
+    </button>
 
     <nav class="nav" id="nav">
       <button data-view="today" class="on">
@@ -590,6 +609,9 @@ body.gated{overflow:hidden}
         <div class="desc" id="viewDesc">复查到期与逾期的顾客，一条条处理掉</div>
       </div>
       <div class="spacer"></div>
+      <button class="btn who" id="btnWhoTop" type="button" title="修改我的名称">
+        <span class="avm" id="whoTopAv">我</span><span class="wlab" id="whoTopLabel">我</span>
+      </button>
       <button class="btn pri" id="btnNewTop">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
         新建检查
@@ -900,6 +922,9 @@ body.gated{overflow:hidden}
 <div id="modal"><div class="box">
   <h3 id="modalTitle">确认</h3>
   <p id="modalText"></p>
+  <div id="modalField" style="display:none;margin:-6px 0 16px">
+    <input id="modalNameInput" maxlength="12" autocomplete="off">
+  </div>
   <div class="row"><button class="btn" id="modalCancel">取消</button><button class="btn dan" id="modalOk">确认</button></div>
 </div></div>
 
@@ -982,6 +1007,7 @@ body.gated{overflow:hidden}
 const LS_RECORDS = 'wb_vision_records_v1';
 const LS_META    = 'wb_vision_meta_v1';
 const LS_DRAFT   = 'wb_vision_draft_v1';   /* 未提交的录入草稿，防止填一半切走 / 刷新丢失 */
+const LS_PROFILE = 'wb_vision_profile_v1'; /* 使用者自己的显示名称，按登录手机号分别保存 */
 const APP_VERSION = '1.0.0';
 
 /* ============================== 0.1 登录门禁配置（管理员可改） ============================== */
@@ -1081,16 +1107,55 @@ function debounce(fn, wait){
   };
 }
 function confirmBox(title, text, onOk, onCancel){
-  $('#modalTitle').textContent = title;
-  $('#modalText').innerHTML = text;
+  openModal({ title: title, text: text, onOk: onOk, onCancel: onCancel });
+}
+/* 通用弹窗内核：confirmBox / promptBox 共用同一个 #modal，避免两套监听器互相干扰 */
+function openModal(opt){
   const m = $('#modal');
-  m.classList.add('show');
+  $('#modalTitle').textContent = opt.title || '确认';
+  $('#modalText').innerHTML = opt.text || '';
+  const fld = $('#modalField'), inp = $('#modalNameInput');
+  if (opt.input && fld && inp) {
+    fld.style.display = '';
+    inp.value = opt.value || '';
+    inp.placeholder = opt.placeholder || '';
+    setTimeout(function(){ try { inp.focus(); inp.select(); } catch (e) {} }, 40);
+  } else if (fld && inp) {
+    fld.style.display = 'none';
+    inp.value = '';
+  }
   const ok = $('#modalOk'), cancel = $('#modalCancel');
-  function close(){ m.classList.remove('show'); ok.removeEventListener('click', yes); cancel.removeEventListener('click', no); }
-  function yes(){ close(); onOk(); }
-  function no(){ close(); if (typeof onCancel === 'function') onCancel(); }
+  ok.textContent = opt.okText || '确认';
+  ok.className = 'btn ' + (opt.okClass || 'dan');
+  m.classList.add('show');
+
+  function close(){
+    m.classList.remove('show');
+    ok.removeEventListener('click', yes);
+    cancel.removeEventListener('click', no);
+    if (inp) inp.removeEventListener('keydown', onKey);
+  }
+  function yes(){
+    let v = null;
+    if (opt.input) {
+      v = (inp.value || '').trim();
+      if (!v && opt.required !== false) { toast('请先填写内容'); try { inp.focus(); } catch (e) {} return; }
+    }
+    close();
+    opt.onOk(v);
+  }
+  function no(){ close(); if (typeof opt.onCancel === 'function') opt.onCancel(); }
+  function onKey(e){
+    if (e.key === 'Enter') { e.preventDefault(); yes(); }
+    else if (e.key === 'Escape') { e.preventDefault(); no(); }
+  }
   ok.addEventListener('click', yes);
   cancel.addEventListener('click', no);
+  if (opt.input && inp) inp.addEventListener('keydown', onKey);
+}
+/* 可输入的确认弹窗（如修改名称、改复查日） */
+function promptBox(title, text, opt, onOk){
+  openModal(Object.assign({ title: title, text: text, input: true, okText: '保存', okClass: 'pri', onOk: onOk }, opt || {}));
 }
 function se(sph, cyl){
   if (sph === null && cyl === null) return null;
@@ -2215,6 +2280,9 @@ function switchView(view){
   $$('#tabbar button').forEach(function(b){ b.classList.toggle('on', b.getAttribute('data-view') === view); });
   $('#viewTitle').textContent = VIEW_META[view].t;
   $('#viewDesc').textContent = VIEW_META[view].d;
+  /* 录入页自己就有「清空表单，新建一条」，顶栏的「新建检查」在该页隐藏，避免同一动作两个按钮 */
+  const nt = $('#btnNewTop');
+  if (nt) nt.style.display = (view === 'entry') ? 'none' : '';
   window.scrollTo(0, 0);
 }
 
@@ -3152,6 +3220,11 @@ function bindEvents(){
     });
   });
   $('#btnNewTop').addEventListener('click', function(){ showEntry(true); });
+  /* 修改我的名称：桌面端点左侧用户栏，手机端点顶栏头像 */
+  const ub = $('#userBox');
+  if (ub) ub.addEventListener('click', openRename);
+  const wt = $('#btnWhoTop');
+  if (wt) wt.addEventListener('click', openRename);
   $('#btnForceNew').addEventListener('click', function(){ showEntry(true); toast('已清空表单，开始新建检查'); });
   $('#btnRestoreDraft').addEventListener('click', restoreDraftManual);
 
@@ -3388,6 +3461,53 @@ function registerSW(){
   });
 }
 
+/* ============================== 22.4 使用者名称（按手机号分别保存） ============================== */
+function myPhone(){
+  try { return (JSON.parse(localStorage.getItem(AUTH_CONFIG.storageKey) || '{}')).phone || ''; }
+  catch (e) { return ''; }
+}
+function maskPhone(p){ return p ? p.replace(/(\d{3})\d{4}(\d{4})/, '$1****$2') : ''; }
+/* 没拿到手机号时（旧登录态/离线）也给一个占位 key，避免「改完名称没反应」 */
+function myKey(){ return myPhone() || '_local'; }
+function getMyName(){
+  const map = storage.read(LS_PROFILE, {}) || {};
+  return (map[myKey()] || '').trim();
+}
+function setMyName(name){
+  const map = storage.read(LS_PROFILE, {}) || {};
+  const k = myKey();
+  if (name) map[k] = name; else delete map[k];
+  storage.write(LS_PROFILE, map);
+}
+/* 侧边栏用户栏 + 手机端顶栏头像，统一由这里刷新（单一来源，避免两处显示不一致） */
+function renderUserbox(){
+  const phone = myPhone();
+  const mask = maskPhone(phone);
+  const name = getMyName();
+  const initial = name ? Array.from(name)[0] : '我';
+  const av = $('#userAv'), nm = $('#userName'), sub = $('#userSub');
+  if (av) av.textContent = initial;
+  if (nm) nm.textContent = name || mask || '未登录';
+  if (sub) {
+    if (name && mask) sub.textContent = mask + ' · 视光师';
+    else if (mask) sub.textContent = '已授权 · 视光师';
+    else sub.textContent = '视光师';
+  }
+  const tAv = $('#whoTopAv'), tLb = $('#whoTopLabel');
+  if (tAv) tAv.textContent = initial;
+  if (tLb) tLb.textContent = name || '我';
+}
+function openRename(){
+  promptBox('修改我的名称',
+    '这个名称用于区分操作者，只保存在本机浏览器，不会上传。<br>留空保存即恢复显示手机号。',
+    { value: getMyName(), placeholder: '如：秀莉', required: false, okText: '保存' },
+    function(v){
+      setMyName(v);
+      renderUserbox();
+      toast(v ? ('名称已改为「' + v + '」') : '已恢复显示手机号');
+    });
+}
+
 /* ============================== 22.5 登录门禁（软校验，纯前端） ============================== */
 function isAuthed(){
   try {
@@ -3406,12 +3526,7 @@ function hideLoginGate(){
   document.body.classList.remove('gated');
   const g = document.getElementById('loginGate');
   if (g) g.classList.add('hidden');
-  // 在侧边栏显示已登录手机号
-  const phone = (function(){ try { return (JSON.parse(localStorage.getItem(AUTH_CONFIG.storageKey)||'{}')).phone||''; } catch(e){ return ''; } })();
-  const nm = document.querySelector('.userbox .nm');
-  const sub = document.querySelector('.userbox .sub');
-  if (nm && phone) nm.textContent = phone.replace(/(\d{3})\d{4}(\d{4})/, '$1****$2');
-  if (sub) sub.textContent = '已授权 · 视光师';
+  renderUserbox();   /* 显示「自己设的名称 / 手机号」，不再是写死的姓名 */
 }
 function validPhone(p){ return /^1[3-9]\d{9}$/.test(p || ''); }
 function validCode(c){
