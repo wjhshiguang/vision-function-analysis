@@ -3727,7 +3727,6 @@ function adminLoad(){
 /* 最近登录时间：服务端 last_seen 为 UTC，需转本地时区并以相对时间实时显示 */
 var adminCache = { users: [], codes: [] };
 var adminTimer = null;
-var adminTickCount = 0;
 function parseUtc(iso){
   var s = String(iso || '').trim();
   if (!s) return null;
@@ -3739,25 +3738,14 @@ function parseUtc(iso){
 function fmtLastSeen(iso){
   var d = parseUtc(iso);
   if (!d) return '从未登录';
-  var diff = (new Date().getTime() - d.getTime()) / 1000;   /* 本地时区下的真实间隔（秒） */
-  if (diff < 0) diff = 0;
-  if (diff < 60) return '刚刚';
-  if (diff < 3600) return Math.floor(diff / 60) + '分钟前';
-  if (diff < 86400) return Math.floor(diff / 3600) + '小时前';
-  if (diff < 604800) return Math.floor(diff / 86400) + '天前';
+  /* 始终显示本地时区的具体日期时间（不显示「X天前/X小时前」等相对表述） */
   var p = function(n){ return (n < 10 ? '0' : '') + n; };
-  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds());
 }
-/* 管理面板打开期间定时刷新：奇数次用缓存重渲相对时间（不请求服务器），
-   偶数次（约 60s）重新拉取服务端数据，保证「最近」时间实时准确；关闭面板即停 */
+/* 管理面板打开期间每 30s 重新拉取服务端数据，保证「最近」具体时间实时准确；关闭面板即停 */
 function startAdminLive(){
   if (adminTimer) clearInterval(adminTimer);
-  adminTickCount = 0;
-  adminTimer = setInterval(function(){
-    adminTickCount++;
-    if (adminTickCount % 2 === 0){ if (adminToken) adminLoad(); }
-    else if (adminCache.users.length){ renderAdminUsers(adminCache.users); }
-  }, 30000);
+  adminTimer = setInterval(function(){ if (adminToken) adminLoad(); }, 30000);
 }
 function stopAdminLive(){ if (adminTimer){ clearInterval(adminTimer); adminTimer = null; } }
 function renderAdminUsers(list){
