@@ -823,11 +823,46 @@ body.gated{overflow:hidden}
               <div class="field"><label>立体视</label><div class="unit"><input name="stereo" type="number" step="1" inputmode="numeric" placeholder="80"><span>弧秒</span></div></div>
               <div class="field"><label>不等像</label><div class="unit"><input name="aniseikonia" type="number" step="0.25" inputmode="decimal" placeholder="0.5"><span>%</span></div></div>
               <div class="field" style="grid-column:1/-1"><label>注视稳定性 / 扫视 / 追随</label><input name="motility" placeholder="如：注视稳定，扫视略欠精准；未查"></div>
-              <div class="field" style="grid-column:1/-1"><label>备注</label><textarea name="note" placeholder="其他需要记录的信息（选填）"></textarea></div>
-            </div>
+            <div class="field" style="grid-column:1/-1"><label>备注</label><textarea name="note" placeholder="其他需要记录的信息（选填）"></textarea></div>
           </div>
+        </div>
 
-          <div class="card flat">
+        <div class="card">
+          <div class="card-h">
+            <div class="ico">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#0A5C70" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="3.2"/><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6z"/></svg>
+            </div>
+            <h3>六、近视防控专项检查</h3>
+            <span class="tag">眼轴 / 角膜曲率 / 眼压</span>
+          </div>
+          <div class="alertbox info" style="margin-bottom:12px;font-size:12.5px">
+            近视防控的核心监测指标是<b>眼轴长度</b>与<b>角膜曲率</b>：轴率比 = 眼轴长度 ÷ 角膜曲率半径（角膜曲率半径 mm ≈ 337.5 ÷ 角膜曲率 D）。
+            眼轴每增长约 1mm 等效近视加深 2.50~3.00D；儿童轴率比 &gt; 3.0 提示眼轴相对角膜偏长、近视风险增高。建议每次复查都测量，用于跟踪防控效果。
+          </div>
+          <div class="sec-title">眼轴长度（AL，mm）</div>
+          <div class="grid g4">
+            <div class="field"><label>眼轴 OD</label><div class="unit"><input name="alOd" type="number" step="0.01" inputmode="decimal" placeholder="23.50"><span>mm</span></div></div>
+            <div class="field"><label>眼轴 OS</label><div class="unit"><input name="alOs" type="number" step="0.01" inputmode="decimal" placeholder="23.45"><span>mm</span></div></div>
+          </div>
+          <div class="sec-title">角膜曲率（K，D / °）</div>
+          <div class="grid g4">
+            <div class="field"><label>角膜 K1 OD</label><div class="unit"><input name="kOd1" type="number" step="0.25" inputmode="decimal" placeholder="43.00"><span>D</span></div></div>
+            <div class="field"><label>角膜 K2 OD</label><div class="unit"><input name="kOd2" type="number" step="0.25" inputmode="decimal" placeholder="44.00"><span>D</span></div></div>
+            <div class="field"><label>角膜轴位 OD</label><input name="kOdAx" type="number" min="0" max="180" inputmode="numeric" placeholder="90"></div>
+            <div class="field"><label>角膜 K1 OS</label><div class="unit"><input name="kOs1" type="number" step="0.25" inputmode="decimal" placeholder="42.75"><span>D</span></div></div>
+            <div class="field"><label>角膜 K2 OS</label><div class="unit"><input name="kOs2" type="number" step="0.25" inputmode="decimal" placeholder="43.75"><span>D</span></div></div>
+            <div class="field"><label>角膜轴位 OS</label><input name="kOsAx" type="number" min="0" max="180" inputmode="numeric" placeholder="95"></div>
+          </div>
+          <div class="sec-title">眼压与眼底</div>
+          <div class="grid g4">
+            <div class="field"><label>眼压 OD（mmHg）</label><div class="unit"><input name="iopOd" type="number" step="1" inputmode="decimal" placeholder="16"><span>mmHg</span></div></div>
+            <div class="field"><label>眼压 OS（mmHg）</label><div class="unit"><input name="iopOs" type="number" step="1" inputmode="decimal" placeholder="15"><span>mmHg</span></div></div>
+            <div class="field"><label>眼底检查</label><select name="fundus">
+              <option value="na">未查</option><option value="normal">正常</option><option value="abn">异常（杯盘比偏大 / 豹纹状改变等）</option></select></div>
+          </div>
+        </div>
+
+        <div class="card flat">
             <div style="display:flex;gap:10px;flex-wrap:wrap">
               <button type="submit" class="btn pri" id="btnSubmit" style="flex:1;min-width:180px">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.1" stroke-linecap="round"><path d="M4.5 12.5l5 5 10-11"/></svg>
@@ -876,6 +911,7 @@ body.gated{overflow:hidden}
             <button class="btn sm dan" id="btnClearAll">清空全部数据</button>
           </div>
           <div id="archNotice"></div>
+          <div id="archTrend"></div>
           <div id="archList"></div>
         </div>
       </section>
@@ -1088,6 +1124,12 @@ function diffDays(dateStr){
   if (isNaN(a.getTime())) return null;
   return Math.round((a - b) / 86400000);
 }
+function dateDiffDays(a, b){
+  if (!a || !b) return null;
+  const x = new Date(a + 'T00:00:00'), y = new Date(b + 'T00:00:00');
+  if (isNaN(x.getTime()) || isNaN(y.getTime())) return null;
+  return Math.round((x - y) / 86400000);
+}
 function shortDate(s){ return s ? s.slice(5).replace('-','/') : '—'; }
 function uid(){ return 'r' + Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
 function toast(msg){
@@ -1273,6 +1315,9 @@ function blankRecord(){
     distBI: '', distBO: '', nearBI: '', nearBO: '',
     worthDist: 'na', worthNear: 'na', stereo: null, aniseikonia: null,
     motility: '', pd: null, note: '',
+    alOd: null, alOs: null,
+    kOd1: null, kOd2: null, kOdAx: null, kOs1: null, kOs2: null, kOsAx: null,
+    iopOd: null, iopOs: null, fundus: 'na',
     createdAt: '', nextReview: '', sample: false, analysis: null
   };
 }
@@ -1325,6 +1370,7 @@ function seedData(){
     distBI: 'X/7/4', distBO: '9/19/10', nearBI: '6/10/6', nearBO: '12/16/8',
     worthDist: '4', worthNear: '4', stereo: 80, aniseikonia: 0.5,
     motility: '注视稳定，扫视略欠精准', pd: 60,
+    alOd: 23.50, alOs: 23.55, kOd1: 42.0, kOd2: 43.0, kOs1: 42.0, kOs2: 43.0, iopOd: 15, iopOs: 15,
     note: '示例数据：对应提示词 Few-shot 案例，复查已逾期。',
     createdAt: addDays(today, -38), nextReview: addDays(today, -10), sample: true
   });
@@ -1382,7 +1428,23 @@ function seedData(){
     note: '示例数据：只做了部分检查（AMP、PRA、融合范围未查），用于演示数据不足时的处理。',
     createdAt: addDays(today, -5), nextReview: '', sample: true
   });
-  state.records = [s1, s2, s3, s4, s5];
+  const s6 = Object.assign(blankRecord(), {
+    id: uid(), name: '小明（示例）', age: 12, gender: '男', wear: 'frame',
+    odSph: -1.75, odCyl: 0, odAx: 180, osSph: -1.5, osCyl: 0, osAx: 180,
+    odUcva: '0.15', osUcva: '0.2', odBcva: '1.0', osBcva: '1.0',
+    cyclo: 'no', fogging: 'yes',
+    symNear: true, symHead: true, symDuration: '约 4 个月', nearHours: 6, continuous: 'yes',
+    ampMethod: 'pushup', ampOd: 4.8, ampOs: 5.0, ampOu: 4.8,
+    nra: 2.25, pra: -1.0, bcc: 1.00, facOd: 5, facOs: 6, facOu: 4,
+    distPhoriaVal: 2, distPhoriaDir: 'exo', nearPhoriaVal: 9, nearPhoriaDir: 'exo',
+    aca: 4.5, acaMethod: 'calc', npc: 11, vergFac: 7,
+    distBI: 'X/7/4', distBO: '9/19/10', nearBI: '6/10/6', nearBO: '12/16/8',
+    worthDist: '4', worthNear: '4', stereo: 90,
+    alOd: 23.65, alOs: 23.70, kOd1: 42.0, kOd2: 43.0, kOs1: 42.0, kOs2: 43.0, iopOd: 16, iopOs: 16,
+    note: '示例数据：小明的复查记录，用于演示眼轴 / 等效球镜趋势追踪。',
+    createdAt: addDays(today, -8), nextReview: addDays(today, 22), sample: true
+  });
+  state.records = [s1, s2, s3, s4, s5, s6];
   state.records.forEach(function(r){ r.analysis = summarize(r); });
   saveRecords();
   storage.write(LS_META, { seeded: true, seededAt: new Date().toISOString(), version: APP_VERSION });
@@ -1710,8 +1772,10 @@ function assessVergence(rec){
       basis: '远距内隐斜 ' + fmtNum(dDist) + 'Δ 大于近距（' + phoriaText(dNear) + '）' + (sup.length ? '；' + sup.join('；') : '') + '。' });
   }
   /* 散开过度 DE：远距外隐斜（负值）大于近距外隐斜；近距须为外隐斜或正位（dNear<=0），
-     避免近距为内隐斜（正值）时 dDist<dNear 恒真导致集合过度（CE）患者被误判为 DE */
-  if (dDist !== null && dDist < 0 && dNear !== null && dNear <= 0 && dDist < dNear) {
+     避免近距为内隐斜（正值）时 dDist<dNear 恒真导致集合过度（CE）患者被误判为 DE。
+     另需远距外隐斜超出 Morgan 正常下限（< -3Δ）：否则「远距外斜1Δ + 近正位」这类
+     远近均在正常范围内的生理性差异也会被误判为 DE（极限测试 D5 复现）。 */
+  if (dDist !== null && dDist < NORM.distExo.lo && dNear !== null && dNear <= 0 && dDist < dNear) {
     const sup = [];
     if (distBObrk !== null && distBObrk < 19) sup.push('远距 BO 破裂点 ' + fmtNum(distBObrk) + 'Δ 偏低');
     findings.push({ name:'散开过度（DE）', level:'major',
@@ -1789,6 +1853,84 @@ function assessReserve(rec){
   const cycloplegic = rec.cyclo === 'yes';
   return { age: rec.age, lo: row.lo, seWorst: worst, seOd: seOd, seOs: seOs,
     cycloplegic: cycloplegic, insufficient: cycloplegic && worst < row.lo, src: RESERVE_SRC };
+}
+
+/* ============================== 9.1 近视防控专项（眼轴 / 角膜曲率 / 轴率比 / 眼压 / 眼底） ============================== */
+/* 角膜曲率半径 CR(mm) ≈ 337.5 ÷ 角膜曲率 D（取 K1/K2 均值） */
+function cornealRadius(k1, k2){
+  if (k1 === null && k2 === null) return null;
+  const avg = (k1 !== null && k2 !== null) ? (k1 + k2) / 2 : (k1 !== null ? k1 : k2);
+  if (!avg || avg <= 0) return null;
+  return Math.round((337.5 / avg) * 100) / 100;
+}
+function axialRatio(al, cr){
+  if (al === null || cr === null) return null;
+  return Math.round((al / cr) * 1000) / 1000;
+}
+function assessMyopiaControl(rec){
+  const rows = [], findings = [];
+  const alWorst = (function(){ const v = [rec.alOd, rec.alOs].filter(function(x){ return x !== null; }); return v.length ? Math.max.apply(null, v) : null; })();
+  if (alWorst === null) {
+    rows.push({ g:'防控', n:'眼轴长度 AL', v:'未查', norm:'儿童随年龄增长，成人约 23~24mm', st:'na', src:'近视防控监测核心指标', note:'未查，无法评估眼轴增长风险。' });
+  } else {
+    let st = 'ok', note = '在常见范围内。';
+    if (alWorst >= 24.5) { st = 'bad'; note = '眼轴 ≥ 24.5mm，已达（或接近）近视人群的眼轴水平，需结合曲率与屈光综合判断。'; }
+    else if (alWorst >= 23.5) { st = 'mid'; note = '眼轴偏长（≥23.5mm），近视风险相对增高，建议定期复查眼轴并跟踪增长速率。'; }
+    rows.push({ g:'防控', n:'眼轴长度 AL',
+      v: (rec.alOd !== null ? ('OD ' + fmtNum(rec.alOd, 2)) : '—') + ' / ' + (rec.alOs !== null ? ('OS ' + fmtNum(rec.alOs, 2)) : '—') + ' mm',
+      norm:'儿童随年龄增长，成人约 23~24mm', st: st, src:'近视防控监测核心指标', note: note });
+  }
+
+  const crOd = cornealRadius(rec.kOd1, rec.kOd2), crOs = cornealRadius(rec.kOs1, rec.kOs2);
+  const ratioOd = axialRatio(rec.alOd, crOd), ratioOs = axialRatio(rec.alOs, crOs);
+  const ratioAvg = (ratioOd !== null && ratioOs !== null) ? (ratioOd + ratioOs) / 2 : (ratioOd !== null ? ratioOd : ratioOs);
+  rows.push({ g:'防控', n:'角膜曲率 K',
+    v: (rec.kOd1 !== null ? ('OD ' + fmtNum(rec.kOd1, 2) + '/' + fmtNum(rec.kOd2 == null ? 0 : rec.kOd2, 2)) : '—') + ' / ' +
+       (rec.kOs1 !== null ? ('OS ' + fmtNum(rec.kOs1, 2) + '/' + fmtNum(rec.kOs2 == null ? 0 : rec.kOs2, 2)) : '—') + ' D',
+    norm:'K1/K2：约 40~46D', st:'na', src:'角膜形态', note:'未查或仅供参考。' });
+  if (ratioAvg === null) {
+    rows.push({ g:'防控', n:'轴率比 AL/CR', v:'未查', norm:'儿童 > 3.0 提示眼轴相对角膜偏长', st:'na', src:'Trocchio 等', note:'需同时有眼轴与角膜曲率才能计算轴率比。' });
+  } else {
+    let st = 'ok', note = '眼轴与角膜比例协调。';
+    if (ratioAvg > 3.0) { st = ratioAvg >= 3.2 ? 'bad' : 'mid'; note = '轴率比 > 3.0（约 ' + fmtNum(ratioAvg, 2) + '），提示眼轴相对角膜偏长，近视风险增高，是判断「轴性近视」倾向的重要指标。'; }
+    else if (ratioAvg < 2.8) { st = 'mid'; note = '轴率比 < 2.8（约 ' + fmtNum(ratioAvg, 2) + '），眼轴相对角膜偏短，需注意远视倾向。'; }
+    rows.push({ g:'防控', n:'轴率比 AL/CR',
+      v: (ratioOd !== null ? ('OD ' + fmtNum(ratioOd, 2)) : '—') + ' / ' + (ratioOs !== null ? ('OS ' + fmtNum(ratioOs, 2)) : '—'),
+      norm:'儿童 > 3.0 提示眼轴相对角膜偏长', st: st, src:'Trocchio 等', note: note });
+  }
+
+  const iopHi = (function(){ const v = [rec.iopOd, rec.iopOs].filter(function(x){ return x !== null; }); return v.length ? Math.max.apply(null, v) : null; })();
+  if (iopHi === null) {
+    rows.push({ g:'防控', n:'眼压 IOP', v:'未查', norm:'10~21 mmHg', st:'na', src:'青光眼筛查', note:'未查。' });
+  } else {
+    let st = 'ok', note = '在常见范围内（10~21mmHg）。';
+    if (iopHi > 21) { st = 'bad'; note = '眼压 > 21mmHg，超出正常上限，建议眼科排查青光眼等。'; }
+    else if (iopHi < 10) { st = 'mid'; note = '眼压偏低（<10mmHg），结合症状判断。'; }
+    rows.push({ g:'防控', n:'眼压 IOP',
+      v: (rec.iopOd !== null ? ('OD ' + fmtNum(rec.iopOd, 0)) : '—') + ' / ' + (rec.iopOs !== null ? ('OS ' + fmtNum(rec.iopOs, 0)) : '—') + ' mmHg',
+      norm:'10~21 mmHg', st: st, src:'青光眼筛查', note: note });
+  }
+
+  let fundusSt = 'na', fundusNote = '未查。';
+  if (rec.fundus === 'normal') { fundusSt = 'ok'; fundusNote = '眼底未见明显异常。'; }
+  else if (rec.fundus === 'abn') { fundusSt = 'bad'; fundusNote = '眼底提示异常（杯盘比偏大 / 豹纹状改变等），建议眼科进一步评估。'; }
+  rows.push({ g:'防控', n:'眼底检查', v: rec.fundus === 'abn' ? '异常' : (rec.fundus === 'normal' ? '正常' : '未查'),
+    norm:'正常', st: fundusSt, src:'眼底照相', note: fundusNote });
+
+  if (ratioAvg !== null && ratioAvg > 3.0) {
+    findings.push({ name:'眼轴相对角膜偏长（轴率比偏高）', level: ratioAvg >= 3.2 ? 'major' : 'minor',
+      basis:'轴率比 AL/CR 约 ' + fmtNum(ratioAvg, 2) + '（>3.0），提示轴性近视倾向，是近视防控重点监测对象。' });
+  }
+  if (alWorst !== null && alWorst >= 24.5) {
+    findings.push({ name:'眼轴偏长', level:'minor', basis:'眼轴较长（' + fmtNum(alWorst, 2) + 'mm），已达近视人群常见水平。' });
+  }
+  if (iopHi !== null && iopHi > 21) {
+    findings.push({ name:'眼压偏高', level:'major', basis:'眼压 > 21mmHg，需排查青光眼等器质性疾病。' });
+  }
+  if (rec.fundus === 'abn') {
+    findings.push({ name:'眼底异常', level:'major', basis:'眼底提示异常，建议眼科进一步评估，排除器质性病变。' });
+  }
+  return { rows: rows, findings: findings, ratioOd: ratioOd, ratioOs: ratioOs, ratioAvg: ratioAvg, crOd: crOd, crOs: crOs };
 }
 
 /* ============================== 10. 最小可分析数据集 ============================== */
@@ -2079,6 +2221,41 @@ function binoSection(rec, b){
   return { pro: pro, lay: lay };
 }
 
+function myoSection(rec, myo){
+  const pro = [], lay = [];
+  const alV = (rec.alOd !== null || rec.alOs !== null)
+    ? ('眼轴 OD ' + (rec.alOd !== null ? fmtNum(rec.alOd, 2) : '—') + ' / OS ' + (rec.alOs !== null ? fmtNum(rec.alOs, 2) : '—') + ' mm')
+    : null;
+  const kV = (rec.kOd1 !== null || rec.kOs1 !== null)
+    ? ('角膜曲率 K1/K2 OD ' + (rec.kOd1 !== null ? fmtNum(rec.kOd1, 2) : '—') + (rec.kOd2 !== null ? '/' + fmtNum(rec.kOd2, 2) : '') + ' / OS ' + (rec.kOs1 !== null ? fmtNum(rec.kOs1, 2) : '—') + (rec.kOs2 !== null ? '/' + fmtNum(rec.kOs2, 2) : '') + ' D')
+    : null;
+  const ratioV = myo.ratioAvg !== null ? ('轴率比 AL/CR ≈ ' + fmtNum(myo.ratioAvg, 2)) : null;
+  const iopV = (rec.iopOd !== null || rec.iopOs !== null)
+    ? ('眼压 OD ' + (rec.iopOd !== null ? fmtNum(rec.iopOd, 0) : '—') + ' / OS ' + (rec.iopOs !== null ? fmtNum(rec.iopOs, 0) : '—') + ' mmHg')
+    : null;
+  const fundusV = rec.fundus === 'abn' ? '异常' : (rec.fundus === 'normal' ? '正常' : '未查');
+  const parts = [alV, kV, ratioV, iopV, '眼底 ' + fundusV].filter(Boolean);
+  pro.push('数据汇总：' + (parts.length ? parts.join('；') + '。' : '近视防控专项（眼轴 / 角膜曲率 / 轴率比 / 眼压 / 眼底）本次均未录入。'));
+
+  const fs = myo.findings.filter(function(x){ return x.level !== 'none'; });
+  if (fs.length) pro.push('指标判定：' + fs.map(function(x){ return x.name + '——' + x.basis; }).join(' '));
+  else pro.push('指标判定：已录入的近视防控指标均在常见范围内，未提示明显的轴性近视倾向、高眼压或眼底异常。');
+
+  if (myo.ratioAvg !== null && myo.ratioAvg > 3.0) lay.push('从眼轴和角膜的「搭配」看，眼轴相对角膜偏长了，这是「轴性近视」的常见苗头——就像气球被吹得偏长，眼球也更容易往近视方向走，要重点盯增长速率。');
+  if (rec.alOd !== null || rec.alOs !== null) {
+    const alWorst = Math.max.apply(null, [rec.alOd, rec.alOs].filter(function(x){ return x !== null; }));
+    if (alWorst >= 24.5) lay.push('眼轴长度已经到了近视人群常见的水平（约 ' + fmtNum(alWorst, 2) + 'mm），后续复查要特别注意它一年长了多少。');
+    else if (alWorst >= 23.5) lay.push('眼轴比同龄人偏长一些，近视的风险相对高一点，建议定期（3~6 个月）复查眼轴、看增长趋势。');
+  }
+  if (rec.iopOd !== null || rec.iopOs !== null) {
+    const iopWorst = Math.max.apply(null, [rec.iopOd, rec.iopOs].filter(function(x){ return x !== null; }));
+    if (iopWorst > 21) lay.push('眼压偏高，这个不能只当成视疲劳，需要先排除青光眼等眼部疾病。');
+  }
+  if (rec.fundus === 'abn') lay.push('眼底检查有异常提示，建议尽快到眼科做详细检查，排除器质性问题。');
+  if (!lay.length) lay.push('目前的眼轴、角膜、眼压和眼底都还在常规范围内，暂时没看到明显的近视防控风险信号，保持好习惯、定期复查就行。');
+  return { pro: pro, lay: lay };
+}
+
 /* ============================== 15. 计算层：建议方案 ============================== */
 function buildPlan(rec, accom, verg, bino, reserve, dx, severity){
   const names = dx.map(function(d){ return d.name; });
@@ -2176,7 +2353,8 @@ function buildPlan(rec, accom, verg, bino, reserve, dx, severity){
 function normalizeRec(rec){
   if (!rec) return rec;
   const NUM_KEYS = ['age','ampOd','ampOs','ampOu','nra','pra','bcc','facOd','facOs','facOu',
-    'distPhoriaVal','nearPhoriaVal','aca','npc','vergFac','stereo','aniseikonia'];
+    'distPhoriaVal','nearPhoriaVal','aca','npc','vergFac','stereo','aniseikonia',
+    'alOd','alOs','kOd1','kOd2','kOdAx','kOs1','kOs2','kOsAx','iopOd','iopOs'];
   NUM_KEYS.forEach(function(k){ if (rec[k] === undefined) rec[k] = null; });
   ['worthDist','worthNear'].forEach(function(k){
     const v = rec[k];
@@ -2194,6 +2372,8 @@ function buildReport(rec){
   const verg = assessVergence(rec);
   const bino = assessBinocular(rec);
   const reserve = assessReserve(rec);
+  const myo = assessMyopiaControl(rec);
+  const myoText = myoSection(rec, myo);
   const md = minDataset(rec);
   const stop = rf.length > 0;
   const dx = (md.ok && !stop) ? crossDiagnose(accom, verg, bino) : [];
@@ -2204,12 +2384,22 @@ function buildReport(rec){
   if (!stop && reserve && reserve.insufficient && (severity.level === '未见明显异常' || severity.level === '轻度')) {
     severity.basis += ' 另需注意：散瞳后等效球镜低于该年龄远视储备下限（详见 3.4 节），属于近视风险因素，建议按复查计划持续跟踪。';
   }
+  const myoMajor = myo.findings.filter(function(f){ return f.level === 'major'; }).length;
+  const myoMinor = myo.findings.filter(function(f){ return f.level === 'minor'; }).length;
+  if (!stop && (myoMajor || myoMinor)) {
+    severity.majorCount += myoMajor; severity.minorCount += myoMinor;
+    if (severity.level === '未见明显异常' || severity.level === '轻度') {
+      severity.level = myoMajor ? '中度' : '轻度';
+    }
+    severity.basis += ' 近视防控提示：' + myo.findings.map(function(f){ return f.name; }).join('、') + '，需在复查中重点监测眼轴增长、眼压与眼底变化。';
+  }
   const plan = buildPlan(rec, accom, verg, bino, reserve, dx, severity);
 
   const overview = [
     { title:'调节功能', rows: accom.rows },
     { title:'聚散功能', rows: verg.rows },
-    { title:'三级视功能', rows: bino.rows }
+    { title:'三级视功能', rows: bino.rows },
+    { title:'近视防控专项', rows: myo.rows }
   ];
   const naList = [];
   overview.forEach(function(g){ g.rows.forEach(function(r){ if (r.st === 'na') naList.push(g.title.replace('功能','') + '：' + r.n); }); });
@@ -2248,7 +2438,7 @@ function buildReport(rec){
       symDuration: rec.symDuration, nearHours: rec.nearHours, note: rec.note,
       cyclo: rec.cyclo === 'yes' ? '已散瞳' : rec.cyclo === 'no' ? '未散瞳' : '散瞳情况未查' },
     overview: overview, sections: sections, dx: dx, severity: severity, plan: plan,
-    reserve: reserve, limits: limits, warnings: warnings, md: md,
+    reserve: reserve, myo: myo, myoText: myoText, limits: limits, warnings: warnings, md: md,
     disclaimer: DISCLAIMER, nextReview: rec.nextReview, suggestedReview: plan.nextDate
   };
 }
@@ -2401,6 +2591,110 @@ function recordBrief(r){
   return '—';
 }
 
+/* ============================== 16.2 复查趋势（同一顾客多次检查时间线） ============================== */
+function trendFor(name){
+  if (!name) return [];
+  return state.records.filter(function(r){ return r.name === name; })
+    .map(function(r){
+      const rec = normalizeRec(r);
+      const alArr = [rec.alOd, rec.alOs].filter(function(x){ return x !== null; });
+      const al = alArr.length ? (alArr.reduce(function(a, b){ return a + b; }, 0) / alArr.length) : null;
+      const seOd = se(rec.odSph, rec.odCyl), seOs = se(rec.osSph, rec.osCyl);
+      const seArr = [seOd, seOs].filter(function(x){ return x !== null; });
+      const seV = seArr.length ? (seArr.reduce(function(a, b){ return a + b; }, 0) / seArr.length) : null;
+      const cr = cornealRadius(rec.kOd1, rec.kOd2) || cornealRadius(rec.kOs1, rec.kOs2);
+      const ratio = axialRatio(al, cr);
+      return { id: r.id, date: r.createdAt || '', al: al, se: seV, ratio: ratio };
+    })
+    .filter(function(p){ return p.al !== null || p.se !== null; })
+    .sort(function(a, b){ return (a.date || '').localeCompare(b.date || ''); });
+}
+function trendGroups(){
+  const map = {};
+  state.records.forEach(function(r){ if (r.name) (map[r.name] = map[r.name] || []).push(r); });
+  const out = [];
+  Object.keys(map).forEach(function(nm){
+    const series = trendFor(nm);
+    if (series.length >= 2) out.push({ name: nm, count: map[nm].length, series: series });
+  });
+  return out;
+}
+function trendChartSVG(series){
+  const W = 660, H = 280, padL = 48, padR = 48, padT = 30, padB = 48;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+  const n = series.length;
+  const xs = series.map(function(s, i){ return padL + (n === 1 ? plotW / 2 : plotW * i / (n - 1)); });
+  const alVals = series.map(function(s){ return s.al; }).filter(function(v){ return v !== null; });
+  const seVals = series.map(function(s){ return s.se; }).filter(function(v){ return v !== null; });
+  function dom(vals, pad){ if (!vals.length) return [0, 1]; const mn = Math.min.apply(null, vals), mx = Math.max.apply(null, vals); if (mn === mx) return [mn - pad, mx + pad]; return [mn - pad, mx + pad]; }
+  const alD = dom(alVals, 0.3), seD = dom(seVals, 1.0);
+  function yAl(v){ return padT + plotH * (1 - (v - alD[0]) / (alD[1] - alD[0] || 1)); }
+  function ySe(v){ return padT + plotH * (1 - (v - seD[0]) / (seD[1] - seD[0] || 1)); }
+  let s = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="max-width:' + W + 'px;display:block;margin:0 auto" preserveAspectRatio="xMidYMid meet" font-family="-apple-system,Segoe UI,sans-serif">';
+  s += '<rect x="0" y="0" width="' + W + '" height="' + H + '" fill="#ffffff"/>';
+  const ticks = 4;
+  for (let i = 0; i <= ticks; i++) {
+    const y = padT + plotH * i / ticks;
+    s += '<line x1="' + padL + '" y1="' + y + '" x2="' + (W - padR) + '" y2="' + y + '" stroke="#eef1f5"/>';
+    if (alVals.length) { const v = alD[1] - (alD[1] - alD[0]) * i / ticks; s += '<text x="' + (padL - 6) + '" y="' + (y + 4) + '" font-size="10" fill="#e0533d" text-anchor="end">' + fmtNum(v, 2) + '</text>'; }
+    if (seVals.length) { const v = seD[1] - (seD[1] - seD[0]) * i / ticks; s += '<text x="' + (W - padR + 6) + '" y="' + (y + 4) + '" font-size="10" fill="#2f6fed" text-anchor="start">' + fmtNum(v, 2) + '</text>'; }
+  }
+  s += '<line x1="' + padL + '" y1="' + padT + '" x2="' + padL + '" y2="' + (padT + plotH) + '" stroke="#cfd8e3"/>';
+  s += '<line x1="' + (W - padR) + '" y1="' + padT + '" x2="' + (W - padR) + '" y2="' + (padT + plotH) + '" stroke="#cfd8e3"/>';
+  s += '<line x1="' + padL + '" y1="' + (padT + plotH) + '" x2="' + (W - padR) + '" y2="' + (padT + plotH) + '" stroke="#cfd8e3"/>';
+  series.forEach(function(p, i){
+    const d = (p.date || '').length >= 10 ? p.date.slice(5) : (p.date || '');
+    s += '<text x="' + xs[i] + '" y="' + (padT + plotH + 18) + '" font-size="10" fill="#5b6b7b" text-anchor="middle">' + esc(d) + '</text>';
+  });
+  if (alVals.length) s += '<text x="' + (padL - 30) + '" y="' + (padT - 12) + '" font-size="10" fill="#e0533d">眼轴(mm)</text>';
+  if (seVals.length) s += '<text x="' + (W - padR + 14) + '" y="' + (padT - 12) + '" font-size="10" fill="#2f6fed">等效球镜(D)</text>';
+  function drawLine(getY, color, key){
+    let dPath = '', started = false;
+    series.forEach(function(p, i){
+      if (p[key] === null) return;
+      const y = getY(p[key]);
+      dPath += (started ? ' L' : 'M') + xs[i].toFixed(1) + ' ' + y.toFixed(1); started = true;
+    });
+    if (started) s += '<path d="' + dPath + '" fill="none" stroke="' + color + '" stroke-width="2.2" stroke-linejoin="round"/>';
+    series.forEach(function(p, i){
+      if (p[key] === null) return;
+      const y = getY(p[key]);
+      s += '<circle cx="' + xs[i].toFixed(1) + '" cy="' + y.toFixed(1) + '" r="3.6" fill="#fff" stroke="' + color + '" stroke-width="2"/>';
+      s += '<text x="' + xs[i].toFixed(1) + '" y="' + (y - 8) + '" font-size="9.5" fill="' + color + '" text-anchor="middle">' + fmtNum(p[key], 2) + '</text>';
+    });
+  }
+  if (alVals.length) drawLine(yAl, '#e0533d', 'al');
+  if (seVals.length) drawLine(ySe, '#2f6fed', 'se');
+  let lg = padL + 4;
+  if (alVals.length) { s += '<rect x="' + lg + '" y="' + (padT + plotH + 32) + '" width="10" height="10" fill="#e0533d"/><text x="' + (lg + 14) + '" y="' + (padT + plotH + 41) + '" font-size="10" fill="#5b6b7b">眼轴长度</text>'; lg += 84; }
+  if (seVals.length) { s += '<rect x="' + lg + '" y="' + (padT + plotH + 32) + '" width="10" height="10" fill="#2f6fed"/><text x="' + (lg + 14) + '" y="' + (padT + plotH + 41) + '" font-size="10" fill="#5b6b7b">等效球镜</text>'; }
+  s += '</svg>';
+  return s;
+}
+function trendInterpret(series){
+  const items = [];
+  const alPts = series.filter(function(p){ return p.al !== null; });
+  if (alPts.length >= 2) {
+    const first = alPts[0], last = alPts[alPts.length - 1];
+    const days = dateDiffDays(first.date, last.date);
+    const dAl = last.al - first.al;
+    if (days > 0 && days !== null && dAl !== 0) {
+      const perYr = dAl / days * 365;
+      const tag = perYr > 0.3 ? '增长偏快（＞0.3mm/年）' : (perYr > 0.1 ? '平稳增长' : (perYr < 0 ? '未见增长' : '增长缓慢'));
+      items.push('眼轴从 ' + fmtNum(first.al, 2) + 'mm 变为 ' + fmtNum(last.al, 2) + 'mm（' + fmtNum(dAl, 2) + 'mm），按间隔折算约 ' + fmtNum(perYr, 2) + 'mm/年，' + tag + '。');
+    } else {
+      items.push('两次眼轴分别为 ' + fmtNum(first.al, 2) + 'mm 与 ' + fmtNum(last.al, 2) + 'mm。');
+    }
+  }
+  const sePts = series.filter(function(p){ return p.se !== null; });
+  if (sePts.length >= 2) {
+    const first = sePts[0], last = sePts[sePts.length - 1];
+    const dSe = last.se - first.se;
+    items.push('等效球镜从 ' + fmtNum(first.se, 2) + 'D 变为 ' + fmtNum(last.se, 2) + 'D（' + (dSe < 0 ? '' : '+') + fmtNum(dSe, 2) + 'D），' + (dSe < -0.5 ? '近视度数明显加深。' : (dSe < 0 ? '近视度数略有加深。' : '屈光状态基本稳定。')));
+  }
+  return items;
+}
+
 function renderArchive(){
   const kw = (state.archQuery || '').trim().toLowerCase();
   const f = state.archFilter;
@@ -2429,6 +2723,26 @@ function renderArchive(){
         ' 条，建议点上方「导出 JSON 备份」保存一份快照。本工作台的数据只保存在本机浏览器中，清理浏览器数据会导致档案丢失。</div>';
     } else {
       notice.innerHTML = '';
+    }
+  }
+
+  const trendEl = $('#archTrend');
+  if (trendEl) {
+    const groups = trendGroups();
+    if (groups.length) {
+      trendEl.innerHTML = '<div class="card flat" style="margin-bottom:14px"><div class="sec-title">复查趋势追踪（同一顾客多次检查）</div>' +
+        groups.map(function(g){
+          const dates = g.series.map(function(s){ return s.date || '—'; });
+          return '<div style="border-top:1px dashed var(--line);padding-top:10px;margin-top:10px">' +
+            '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px">' +
+            '<b>' + esc(g.name) + '</b><span class="src">共 ' + g.count + ' 次检查 · ' + (dates[0] || '—') + ' → ' + (dates[dates.length - 1] || '—') + '</span></div>' +
+            trendChartSVG(g.series) +
+            '<ul style="margin:6px 0 0;padding-left:18px;font-size:12.5px;color:var(--ink2)">' +
+              trendInterpret(g.series).map(function(t){ return '<li>' + esc(t) + '</li>'; }).join('') + '</ul>' +
+            '</div>';
+        }).join('') + '</div>';
+    } else {
+      trendEl.innerHTML = '';
     }
   }
 
@@ -2555,6 +2869,33 @@ function reportHTML(rep){
       '<div class="pane lay"><div class="lb">通俗解读（向顾客解释）</div><p style="margin:0">' + esc(layTxt) + '</p></div></div>';
   }
 
+  /* 3.5 近视防控专项 */
+  if (rep.myo) {
+    const m = rep.myo, mt = rep.myoText;
+    const mfs = m.findings.filter(function(f){ return f.level !== 'none'; });
+    h += '<h5>3.5 近视防控专项（眼轴 / 轴率比 / 眼压 / 眼底）</h5>';
+    h += '<div class="duo">' +
+      '<div class="pane pro"><div class="lb">专业分析（店员参考）</div>' +
+        mt.pro.map(function(p){ return '<p style="margin:0 0 7px">' + esc(p) + '</p>'; }).join('') +
+        '<div style="margin-top:8px;padding-top:8px;border-top:1px dashed var(--line)">' +
+        '<div style="font-size:11px;font-weight:700;color:var(--primary-d);margin-bottom:4px">指标判定</div>' +
+        (mfs.length ? '<ul>' + mfs.map(function(f){ return '<li>' + esc(f.name) + '（' + esc(f.basis) + '）</li>'; }).join('') + '</ul>'
+                    : '<p style="margin:0">已录入的近视防控指标均在常见范围内。</p>') +
+        '</div></div>' +
+      '<div class="pane lay"><div class="lb">通俗解读（向顾客解释）</div>' + mt.lay.map(function(p){ return '<p style="margin:0 0 7px">' + esc(p) + '</p>'; }).join('') + '</div>' +
+      '</div>';
+  }
+
+  /* 3.6 复查趋势 */
+  const trend = rep.name ? trendFor(rep.name) : [];
+  if (trend.length >= 2) {
+    h += '<h5>3.6 复查趋势（眼轴 / 等效球镜时间线）</h5>';
+    h += '<div class="alertbox info" style="margin-bottom:8px">同一顾客（' + esc(rep.name) + '）共 ' + trend.length + ' 次检查含眼轴或等效球镜数据，下方为时间线趋势。</div>';
+    h += trendChartSVG(trend);
+    const ti = trendInterpret(trend);
+    if (ti.length) h += '<ul style="margin:8px 0 0;padding-left:18px;font-size:13px">' + ti.map(function(t){ return '<li>' + esc(t) + '</li>'; }).join('') + '</ul>';
+  }
+
   /* 四、综合诊断结论 */
   h += '<h4>四、综合诊断结论</h4>';
   if (rep.redFlag.hit) {
@@ -2635,6 +2976,18 @@ function reportText(rep){
   if (rep.reserve) {
     L.push('3.4 儿童近视风险提示（远视储备）');
     L.push('【专业分析】散瞳后等效球镜较低值 ' + fmtNum(rep.reserve.seWorst) + 'D，该年龄下限 +' + fmtNum(rep.reserve.lo) + 'D' + (rep.reserve.cycloplegic ? (rep.reserve.insufficient ? '，低于下限，提示远视储备不足。' : '，未低于下限。') : '（本次未散瞳，不作判定）') );
+  }
+  if (rep.myo) {
+    L.push('3.5 近视防控专项（眼轴 / 轴率比 / 眼压 / 眼底）');
+    L.push('【专业分析】' + rep.myoText.pro.join(' '));
+    L.push('【通俗解读】' + rep.myoText.lay.join(' '));
+    if (rep.myo.findings.length) L.push('【指标判定】' + rep.myo.findings.map(function(f){ return f.name + '：' + f.basis; }).join('；'));
+  }
+  const trendTxt = rep.name ? trendFor(rep.name) : [];
+  if (trendTxt.length >= 2) {
+    L.push('3.6 复查趋势（眼轴 / 等效球镜时间线）');
+    L.push('同一顾客共 ' + trendTxt.length + ' 次检查含眼轴或等效球镜数据。');
+    trendInterpret(trendTxt).forEach(function(t){ L.push('  · ' + t); });
   }
   L.push('');
   L.push('四、综合诊断结论');
@@ -2978,9 +3331,11 @@ const FORM_FIELDS = ['name','age','gender','wear','odSph','odCyl','odAx','odUcva
   'odBcva','osBcva','cyclo','fogging','symDuration','symWorst','nearHours','continuous','history','surgery','training',
   'pd','nextReview','ampMethod','ampOd','ampOs','ampOu','nra','pra','bcc','facOd','facOs','facOu',
   'distPhoriaVal','distPhoriaDir','nearPhoriaVal','nearPhoriaDir','aca','acaMethod','npc','vergFac',
-  'distBI','distBO','nearBI','nearBO','worthDist','worthNear','stereo','aniseikonia','motility','note'];
+  'distBI','distBO','nearBI','nearBO','worthDist','worthNear','stereo','aniseikonia','motility','note',
+  'alOd','alOs','kOd1','kOd2','kOdAx','kOs1','kOs2','kOsAx','iopOd','iopOs','fundus'];
 const NUM_FIELDS = ['age','odSph','odCyl','odAx','osSph','osCyl','osAx','nearHours','pd','ampOd','ampOs','ampOu',
-  'nra','pra','bcc','facOd','facOs','facOu','distPhoriaVal','nearPhoriaVal','aca','npc','vergFac','stereo','aniseikonia'];
+  'nra','pra','bcc','facOd','facOs','facOu','distPhoriaVal','nearPhoriaVal','aca','npc','vergFac','stereo','aniseikonia',
+  'alOd','alOs','kOd1','kOd2','kOdAx','kOs1','kOs2','kOsAx','iopOd','iopOs'];
 const CHK_MAP = { sym_near:'symNear', sym_far:'symFar', sym_head:'symHead', sym_skip:'symSkip', sym_dipl:'symDipl', sym_sleepy:'symSleepy', compensate:'compensate' };
 
 function fillForm(rec){
@@ -3026,7 +3381,8 @@ function collectForm(){
 /* ---------------- 录入草稿：填一半切走 / 误刷新也不丢 ---------------- */
 /* 只有这些字段有值时才认为「这是一份值得保存的草稿」，避免空表单也被反复写入 */
 const DRAFT_SIGNIFICANT = ['name','age','odSph','osSph','odBcva','osBcva','ampOd','ampOs','ampOu','nra','pra','bcc',
-  'facOd','facOs','facOu','distPhoriaVal','nearPhoriaVal','aca','npc','stereo','note','symDuration','symWorst','nextReview'];
+  'facOd','facOs','facOu','distPhoriaVal','nearPhoriaVal','aca','npc','stereo','note','symDuration','symWorst','nextReview',
+  'alOd','alOs','kOd1','kOd2','kOdAx','kOs1','kOs2','kOsAx','iopOd','iopOs'];
 function formSnapshot(){
   const fd = new FormData($('#entryForm'));
   const obj = { __id: state.currentId || '', __at: Date.now(), __chk: {}, __rf: [] };
