@@ -434,6 +434,10 @@ body.gated{overflow:hidden}
 .login-field label{display:block;font-size:12.5px;color:var(--ink2);font-weight:600;margin-bottom:6px}
 .login-field input{width:100%;min-height:46px;padding:0 14px;font-size:16px;border:1px solid var(--line);border-radius:12px;background:#FBFDFD;box-sizing:border-box;outline:none;transition:.15s}
 .login-field input:focus{border-color:var(--primary);background:#fff;box-shadow:0 0 0 3px var(--primary-l)}
+.login-sms-row{display:flex;gap:8px}
+.login-sms-row input{flex:1;min-width:0}
+.login-sms-row button{flex:0 0 auto;min-height:46px;padding:0 14px;white-space:nowrap}
+.login-ok{color:var(--ok,#1F8A5F);font-size:12.5px;min-height:18px;margin:2px 0 6px}
 .login-err{color:var(--danger);font-size:12.5px;min-height:18px;margin:2px 0 10px}
 .login-note{font-size:11.5px;color:var(--ink3);margin-top:16px;line-height:1.6;text-align:center}
 .login-admin{font-size:11px;color:var(--ink3);margin-top:8px;text-align:center;line-height:1.6}
@@ -486,6 +490,8 @@ body.gated{overflow:hidden}
 @media(max-width:520px){ .adm-form input{width:100%} .adm-fld.f-code,.adm-fld.f-note{flex:1 1 100%} .adm-fld.f-num{flex:1 1 40%} .adm-fld.f-long{flex:1 1 40%} .adm-fld.f-btn{flex:1 1 100%} .adm-fld.f-btn>span{display:none} }
 
 </style>
+<!-- 短信验证码登录所需：WorkBuddy 云服务 SDK（CDN 形式，单文件 HTML 无构建步骤） -->
+<script src="https://cdn.jsdelivr.net/npm/@tencent-ai/workbuddy-cloud-sdk@dev/lib/index.global.js"></script>
 </head>
 <body>
 
@@ -504,16 +510,24 @@ body.gated{overflow:hidden}
         <p>Optometry Analysis · 登录</p>
       </div>
     </div>
-    <p class="login-sub">本工具仅限授权用户使用，请输入<strong>手机号</strong>与<strong>邀请码</strong>进入。首次输入即完成注册。</p>
+    <p class="login-sub">本工具仅限授权用户使用，请输入<strong>手机号</strong>、<strong>短信验证码</strong>与<strong>邀请码</strong>进入。首次输入即完成注册。</p>
     <form id="loginForm" autocomplete="on" novalidate>
       <div class="login-field">
         <label for="loginPhone">手机号</label>
         <input id="loginPhone" name="phone" type="tel" inputmode="numeric" maxlength="11" placeholder="请输入 11 位手机号" autocomplete="tel">
       </div>
       <div class="login-field">
+        <label for="loginSms">短信验证码</label>
+        <div class="login-sms-row">
+          <input id="loginSms" name="sms" type="text" inputmode="numeric" maxlength="6" placeholder="6 位验证码" autocomplete="one-time-code">
+          <button type="button" class="btn" id="btnSendSms">获取验证码</button>
+        </div>
+      </div>
+      <div class="login-field">
         <label for="loginCode">邀请码</label>
         <input id="loginCode" name="code" type="text" maxlength="32" placeholder="请输入邀请码" autocomplete="off">
       </div>
+      <div class="login-ok" id="loginOk"></div>
       <div class="login-err" id="loginErr"></div>
       <button type="submit" class="btn pri blk" id="loginBtn" style="min-height:46px;font-size:15px;letter-spacing:2px">登 录 / 注 册</button>
     </form>
@@ -1065,6 +1079,45 @@ const CLOUD = {
   offlineWarn: true
 };
 function cloudReady(){ return !!(CLOUD.url && CLOUD.anonKey); }
+
+/* ---- 短信验证码登录（WorkBuddy 云服务 Auth）。仅用于「验证手机号真实」，
+       不改动原有的邀请码授权体系：进入仍需邀请码。---- */
+/* 以下三个值来自 workbuddy_cloud_service 激活返回的 publicConfig，是可下发前端的唯一安全值 */
+const WB_CLOUD = {
+  endpoint: 'https://vision-function-analysis.app.workbuddy.host',
+  oauthRelayBaseUrl: 'https://www.workbuddy.cn/v2/as/genie-baas/oauth',
+  publishableKey: 'wbpk_GgVn9QchmyF7WL5PpNxE22_acJrm0U2gvHrOx7TrC7knzCxl6VkkB4E'
+};
+const SMS_OK_KEY = 'wb_vision_smsok_v1';   // 记录本机已通过短信验证的手机号（仅本机标记，非凭证）
+let wcloud = null;        // WorkBuddy 云服务客户端
+let pendingOtp = null;    // { phone, verificationId, isExistingUser } 发送验证码后暂存的挑战
+let smsTimer = null;      // 重发倒计时
+
+function setupWCloud(){
+  try {
+    if (typeof WorkBuddyCloud === 'undefined' || !WorkBuddyCloud.createWorkBuddyCloud) return false;
+    if (wcloud) return true;
+    wcloud = WorkBuddyCloud.createWorkBuddyCloud({
+      endpoint: WB_CLOUD.endpoint,
+      oauthRelayBaseUrl: WB_CLOUD.oauthRelayBaseUrl,
+      publishableKey: WB_CLOUD.publishableKey
+    });
+    return true;
+  } catch (e) { return false; }
+}
+function wcloudReady(){ return !!wcloud; }
+/* 本机是否已对该手机号完成过短信验证（用于断网/服务暂不可用时的 continuity，不作为唯一凭证） */
+function smsVerifiedFor(phone){
+  try {
+    const raw = localStorage.getItem(SMS_OK_KEY);
+    if (!raw) return false;
+    const o = JSON.parse(raw);
+    return !!(o && o.phone && o.phone === phone);
+  } catch (e) { return false; }
+}
+function markSmsVerified(phone){
+  try { localStorage.setItem(SMS_OK_KEY, JSON.stringify({ phone: phone, ts: Date.now() })); } catch (e) {}
+}
 
 const state = {
   view: 'today',
@@ -4058,24 +4111,129 @@ function showOfflineLoginFallback(phone){
   errEl.appendChild(box);
 }
 
-function doLogin(phone, code){
+/* ---------- 短信验证码：发送 / 校验 ---------- */
+function startSmsCountdown(){
+  const btn = document.getElementById('btnSendSms');
+  if (!btn) return;
+  let left = 60;
+  btn.disabled = true;
+  btn.textContent = left + 's 后重发';
+  if (smsTimer) clearInterval(smsTimer);
+  smsTimer = setInterval(function(){
+    left--;
+    if (left <= 0){ clearInterval(smsTimer); smsTimer = null; btn.disabled = false; btn.textContent = '重发验证码'; return; }
+    btn.textContent = left + 's 后重发';
+  }, 1000);
+}
+function sendPhoneCode(){
   const errEl = document.getElementById('loginErr');
-  const btn   = document.getElementById('loginBtn');
-  phone = (phone || '').trim();
-  code  = (code  || '').trim();
-  if (AUTH_CONFIG.requirePhone && !validPhone(phone)){
-    errEl.textContent = '请输入正确的 11 位手机号'; return false;
+  const okEl  = document.getElementById('loginOk');
+  const btn   = document.getElementById('btnSendSms');
+  const phone = ((document.getElementById('loginPhone') || {}).value || '').trim();
+  if (errEl) errEl.textContent = '';
+  if (okEl)  okEl.textContent = '';
+  if (!/^1\d{10}$/.test(phone)){
+    if (errEl) errEl.textContent = '请输入正确的 11 位手机号';
+    return;
   }
+  if (!wcloudReady()){
+    if (errEl) errEl.textContent = '短信服务暂不可用（未加载成功），请刷新页面重试。';
+    return;
+  }
+  if (btn){ btn.disabled = true; btn.textContent = '发送中…'; }
+  wcloud.auth.sendOtp({ phone: phone }).then(function(sent){
+    if (sent && sent.error){
+      if (btn){ btn.disabled = false; btn.textContent = '获取验证码'; }
+      if (errEl) errEl.textContent = sent.error.message || '验证码发送失败，请稍后再试';
+      return;
+    }
+    /* 保存挑战，稍后校验时原样带回（规范要求：发送与校验分开，校验时不再发新码） */
+    pendingOtp = { phone: phone, verificationId: sent.data.verificationId, isExistingUser: !!sent.data.isExistingUser };
+    if (okEl) okEl.textContent = '验证码已发送至 ' + phone.slice(0, 3) + '****' + phone.slice(7);
+    startSmsCountdown();
+  }).catch(function(){
+    if (btn){ btn.disabled = false; btn.textContent = '获取验证码'; }
+    if (errEl) errEl.textContent = '网络异常，验证码发送失败，请稍后再试';
+  });
+}
+/* 校验短信验证码，返回 Promise<{ok, msg}> */
+function verifyPhoneCode(phone, code){
+  return new Promise(function(resolve){
+    if (!wcloudReady()){ resolve({ ok:false, msg:'短信服务暂不可用，请刷新页面重试' }); return; }
+    if (!pendingOtp || pendingOtp.phone !== phone){
+      resolve({ ok:false, msg:'请先点击「获取验证码」，并填写收到的验证码' }); return;
+    }
+    if (!code){ resolve({ ok:false, msg:'请输入短信验证码' }); return; }
+    wcloud.auth.verifyOtp({
+      phone: pendingOtp.phone,
+      verificationId: pendingOtp.verificationId,
+      isExistingUser: pendingOtp.isExistingUser,
+      token: code
+    }).then(function(done){
+      if (done && done.error){ resolve({ ok:false, msg: done.error.message || '验证码不正确' }); return; }
+      pendingOtp = null;
+      markSmsVerified(phone);
+      resolve({ ok:true });
+    }).catch(function(){
+      resolve({ ok:false, msg:'网络异常，验证失败，请稍后再试' });
+    });
+  });
+}
+/* 第一步：短信验证。返回 Promise<boolean> */
+function runSmsStep(phone, sms, errEl){
+  if (!wcloudReady()){
+    /* 短信服务不可用时，不能把用户彻底挡在门外（数据都在本机）——给出离线应急入口 */
+    showSmsUnavailable(phone, errEl);
+    return Promise.resolve(false);
+  }
+  return verifyPhoneCode(phone, sms).then(function(r){
+    if (!r.ok){ if (errEl) errEl.textContent = r.msg; return false; }
+    return true;
+  });
+}
+/* 短信服务不可用时的提示 + 离线应急入口（复用已有机制） */
+function showSmsUnavailable(phone, errEl){
+  if (!errEl) return;
+  errEl.textContent = '';
+  const box = document.createElement('div');
+  box.style.cssText = 'margin-top:6px;padding:10px 11px;background:#FFF7E6;border:1px solid #F0C987;border-radius:8px;font-size:12.5px;line-height:1.65;color:#8A5A12;text-align:left';
+  const t1 = document.createElement('div');
+  t1.textContent = '短信验证码服务暂时不可用，无法校验手机号。';
+  const t2 = document.createElement('div');
+  t2.style.marginTop = '5px';
+  t2.textContent = '你的档案数据存在本机、不会丢失。若这是你常用的设备，可先离线进入继续工作。';
+  box.appendChild(t1); box.appendChild(t2);
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'btn';
+  btn.textContent = '离线应急进入（仍需手机号）';
+  btn.style.cssText = 'margin-top:10px;width:100%;min-height:44px;cursor:pointer';
+  btn.addEventListener('click', function(){
+    if (AUTH_CONFIG.requirePhone && !validPhone((phone || '').trim())){
+      errEl.textContent = '离线进入也需要填写 11 位手机号';
+      return;
+    }
+    saveAuth((phone || '').trim(), '', 0, false);
+    errEl.textContent = '';
+    hideLoginGate();
+    showOfflineBanner();
+    bootApp();
+  });
+  box.appendChild(btn);
+  errEl.appendChild(box);
+}
+
+/* 第二步：邀请码授权（原逻辑，保持不变） */
+function runInviteStep(phone, code, errEl, btn){
+  function release(){ if (btn){ btn.disabled = false; btn.textContent = '登 录 / 注 册'; } }
   if (!cloudReady()){
     // 未配置云端 → 回退到本地软校验（旧行为，保证始终可用）
-    if (!validCode(code)){ errEl.textContent = '邀请码不正确，请向管理员获取'; return false; }
+    if (!validCode(code)){ errEl.textContent = '邀请码不正确，请向管理员获取'; release(); return Promise.resolve(false); }
     saveAuth(phone, code);
-    errEl.textContent = ''; hideLoginGate(); bootApp(); return true;
+    errEl.textContent = ''; hideLoginGate(); bootApp(); return Promise.resolve(true);
   }
-  if (btn){ btn.disabled = true; btn.textContent = '验证中…'; }
-  errEl.textContent = '';
   return cloudRpc('redeem_invite', { p_phone: phone, p_code: code }).then(function(res){
-    if (btn){ btn.disabled = false; btn.textContent = '登 录 / 注 册'; }
+    release();
     if (res.networkError){ showOfflineLoginFallback(phone); return false; }
     const d = res.data || {};
     if (d.ok === true){
@@ -4090,6 +4248,25 @@ function doLogin(phone, code){
     }
     errEl.textContent = d.msg || '邀请码无效，请向管理员获取';
     return false;
+  });
+}
+
+function doLogin(phone, code){
+  const errEl = document.getElementById('loginErr');
+  const btn   = document.getElementById('loginBtn');
+  phone = (phone || '').trim();
+  code  = (code  || '').trim();
+  if (AUTH_CONFIG.requirePhone && !validPhone(phone)){
+    errEl.textContent = '请输入正确的 11 位手机号'; return false;
+  }
+  const smsEl = document.getElementById('loginSms');
+  const sms = smsEl ? (smsEl.value || '').trim() : '';
+  if (btn){ btn.disabled = true; btn.textContent = '验证中…'; }
+  errEl.textContent = '';
+  /* 先短信验证手机号，再校验邀请码 —— 两步都通过才进入 */
+  return runSmsStep(phone, sms, errEl).then(function(okSms){
+    if (!okSms){ if (btn){ btn.disabled = false; btn.textContent = '登 录 / 注 册'; } return false; }
+    return runInviteStep(phone, code, errEl, btn);
   });
 }
 
@@ -4114,7 +4291,13 @@ function verifyAccessThenBoot(){
   });
 }
 function doLogout(){
+  /* 同时退出短信登录会话，避免换人时不校验手机号 */
+  try {
+    if (wcloud && wcloud.auth && typeof wcloud.auth.signOut === 'function') wcloud.auth.signOut();
+  } catch(e){}
   try { localStorage.removeItem(AUTH_CONFIG.storageKey); } catch(e){}
+  try { localStorage.removeItem(SMS_OK_KEY); } catch(e){}
+  pendingOtp = null;
   state.booted = false;
   location.reload();
 }
@@ -4131,6 +4314,15 @@ function bindLogin(){
   const phoneEl = document.getElementById('loginPhone');
   if (phoneEl) {
     phoneEl.addEventListener('input', function(){ this.value = this.value.replace(/\D/g, '').slice(0, 11); });
+  }
+  const smsBtn = document.getElementById('btnSendSms');
+  if (smsBtn) {
+    /* type="button"：只负责发码，绝不触发表单提交（规范要求发送与校验分开绑定） */
+    smsBtn.addEventListener('click', sendPhoneCode);
+  }
+  const smsInput = document.getElementById('loginSms');
+  if (smsInput) {
+    smsInput.addEventListener('input', function(){ this.value = this.value.replace(/\D/g, '').slice(0, 6); });
   }
   const out = document.getElementById('btnLogout');
   if (out) out.addEventListener('click', doLogout);
@@ -4354,6 +4546,8 @@ function bindAdmin(){
 function init(){
   bindLogin();
   bindAdmin();
+  /* 初始化短信登录客户端（失败不阻断：登录页会提示并给出离线应急入口） */
+  try { setupWCloud(); } catch (e) { wcloud = null; }
   if (!isAuthed()) { showLoginGate(); return; }
   verifyAccessThenBoot();
 }
