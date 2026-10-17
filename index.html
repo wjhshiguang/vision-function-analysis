@@ -4016,11 +4016,46 @@ function saveAuth(phone, code, lastOk, isAdmin){
 function showOfflineBanner(){
   try {
     const el = document.createElement('div');
-    el.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:9998;background:#B9761A;color:#fff;font-size:12.5px;padding:7px 12px;text-align:center';
-    el.textContent = '当前无法连接服务器，以离线模式进入（授权未复查）';
+    el.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:9998;background:#B9761A;color:#fff;font-size:12.5px;padding:7px 12px;text-align:center;line-height:1.5';
+    el.textContent = '当前无法连接服务器，已以离线模式进入（授权未复查）。档案数据存在本机，可正常继续使用。';
     document.body.appendChild(el);
-    setTimeout(function(){ if (el.parentNode) el.parentNode.removeChild(el); }, 6000);
+    setTimeout(function(){ if (el.parentNode) el.parentNode.removeChild(el); }, 10000);
   } catch(e){}
+}
+/* 登录时服务器连不上：给一条「离线应急进入」的活路。
+   工作台的档案数据本来就存在浏览器本机，服务器只负责登录授权复查；
+   若因服务器暂不可用（如免费项目闲置被暂停）而完全拒绝进入，等于让用户拿不回自己的数据。
+   安全边界：仍需填写 11 位手机号；进入后为非管理员；联网后会自动复查授权，若已被停用会被踢出。 */
+function showOfflineLoginFallback(phone){
+  const errEl = document.getElementById('loginErr');
+  if (!errEl) return;
+  errEl.textContent = '';
+  const box = document.createElement('div');
+  box.style.cssText = 'margin-top:9px;padding:10px 11px;background:#FFF7E6;border:1px solid #F0C987;border-radius:8px;font-size:12.5px;line-height:1.65;color:#8A5A12;text-align:left';
+  const t1 = document.createElement('div');
+  t1.textContent = '连不上服务器，无法校验邀请码。';
+  const t2 = document.createElement('div');
+  t2.style.marginTop = '5px';
+  t2.textContent = '常见原因是服务暂不可用（免费服务闲置一段时间后会自动暂停）。你的档案数据存在本机、不会丢失，可先离线进入继续工作；联网后会自动复查授权。';
+  box.appendChild(t1); box.appendChild(t2);
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.textContent = '离线应急进入（仍需手机号）';
+  btn.style.cssText = 'margin-top:10px;width:100%;min-height:44px;cursor:pointer';
+  btn.className = 'btn';
+  btn.addEventListener('click', function(){
+    if (AUTH_CONFIG.requirePhone && !validPhone((phone || '').trim())){
+      errEl.textContent = '离线进入也需要填写 11 位手机号';
+      return;
+    }
+    saveAuth((phone || '').trim(), '', 0, false);
+    errEl.textContent = '';
+    hideLoginGate();
+    showOfflineBanner();
+    bootApp();
+  });
+  box.appendChild(btn);
+  errEl.appendChild(box);
 }
 
 function doLogin(phone, code){
@@ -4041,7 +4076,7 @@ function doLogin(phone, code){
   errEl.textContent = '';
   return cloudRpc('redeem_invite', { p_phone: phone, p_code: code }).then(function(res){
     if (btn){ btn.disabled = false; btn.textContent = '登 录 / 注 册'; }
-    if (res.networkError){ errEl.textContent = '网络异常，无法连接服务器，请稍后再试'; return false; }
+    if (res.networkError){ showOfflineLoginFallback(phone); return false; }
     const d = res.data || {};
     if (d.ok === true){
       errEl.textContent = '';
