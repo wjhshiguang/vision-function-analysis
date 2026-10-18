@@ -4618,6 +4618,7 @@ function renderAdminCodes(list){
         ? '<button class="btn sm dan" data-admcoff="' + esc(c.code) + '">停用</button>'
         : '<button class="btn sm" data-admcon="' + esc(c.code) + '">启用</button>') +
       '<button class="btn sm" data-admcopy="' + esc(c.code) + '">复制</button>' +
+      '<button class="btn sm dan" data-admkickc="' + esc(c.code) + '">踢人</button>' +
       '<button class="btn sm dan" data-admcdel="' + esc(c.code) + '">删除</button>' +
       '</div>';
   });
@@ -4625,6 +4626,7 @@ function renderAdminCodes(list){
   box.querySelectorAll('[data-admcoff]').forEach(function(b){ b.onclick = function(){ admSetCode(b.getAttribute('data-admcoff'), false); }; });
   box.querySelectorAll('[data-admcon]').forEach(function(b){ b.onclick = function(){ admSetCode(b.getAttribute('data-admcon'), true); }; });
   box.querySelectorAll('[data-admcdel]').forEach(function(b){ b.onclick = function(){ admDelCode(b.getAttribute('data-admcdel')); }; });
+  box.querySelectorAll('[data-admkickc]').forEach(function(b){ b.onclick = function(){ admKickByCode(b.getAttribute('data-admkickc')); }; });
   box.querySelectorAll('[data-admcopy]').forEach(function(b){ b.onclick = function(){
     var v = b.getAttribute('data-admcopy');
     if (navigator.clipboard) navigator.clipboard.writeText(v);
@@ -4637,15 +4639,75 @@ function admDelUser(phone){
   admLog('删除用户', phone);
   cloudRpc('admin_del_user', { p_token: adminToken, p_phone: phone }).then(adminLoad);
 }
-function admSetCode(code, active){ admLog('邀请码状态', code + ' → ' + (active ? '启用' : '停用')); cloudRpc('admin_set_code', { p_token: adminToken, p_code: code, p_active: active }).then(adminLoad); }
+/* 把「最近一次用某个邀请码登录」的人全部停用（踢出），返回踢掉的人数。
+   这样停码/删码不用等服务端补丁也能立刻生效。 */
+function kickUsersOfCode(code){
+  var want = String(code).toUpperCase();
+  return cloudRpc('admin_list', { p_token: adminToken }).then(function(res){
+    var d = (res && res.data) || {};
+    var targets = (d.users || []).filter(function(u){
+      return String(u.code || '').toUpperCase() === want && u.active !== false;
+    });
+    if (!targets.length) return 0;
+    return Promise.all(targets.map(function(u){
+      return cloudRpc('admin_set_user', { p_token: adminToken, p_phone: u.phone, p_active: false });
+    })).then(function(){ return targets.length; });
+  }).catch(function(){ return 0; });
+}
+/* 停码/删码后的结果提示（人数取「前端踢掉的」与「服务端返回的」较大值） */
+function kickToast(verb, n){
+  toast(n > 0 ? (verb + '成功，已踢出用这个码登录的 ' + n + ' 人') : (verb + '成功，当前没有用这个码登录的人'));
+}
+function admSetCode(code, active){
+  if (active !== false){
+    admLog('邀请码状态', code + ' → 启用');
+    cloudRpc('admin_set_code', { p_token: adminToken, p_code: code, p_active: true }).then(function(res){
+      var d = (res && res.data) || {};
+      if (d.ok !== true) alert(d.msg || '操作失败');
+      else toast('已启用');
+      adminLoad();
+    });
+    return;
+  }
+  if (String(code).toUpperCase() === 'ADMIN-XIULI'){
+    alert('这是你自己的管理员码，不能停用（会把自己也踢出去）。\n要踢人请到「用户」列表里单独停用。');
+    return;
+  }
+  if (!confirm('停用邀请码「' + code + '」？\n\n停用后：\n· 这个码不能再用于登录\n· 已经用它登录过的人会被一起踢出')) return;
+  admLog('邀请码状态', code + ' → 停用');
+  kickUsersOfCode(code).then(function(n){
+    return cloudRpc('admin_set_code', { p_token: adminToken, p_code: code, p_active: false }).then(function(res){
+      var d = (res && res.data) || {};
+      if (d.ok !== true){ alert(d.msg || '停用失败'); adminLoad(); return; }
+      kickToast('停用', Math.max(n, d.kicked || 0));
+      adminLoad();
+    });
+  });
+}
+/* 只踢人、不动码：用于「码早就停用了，但用过的人还在进来」这种情况 */
+function admKickByCode(code){
+  if (String(code).toUpperCase() === 'ADMIN-XIULI'){
+    alert('这是你自己的管理员码，不能用它踢自己。\n要踢人请到「用户」列表里单独停用。');
+    return;
+  }
+  if (!confirm('把「最近一次用 ' + code + ' 登录」的人全部踢出？\n他们会在 10 分钟内或下次打开时被踢回登录页，需要新的邀请码才能再进来。')) return;
+  admLog('按码踢人', code);
+  kickUsersOfCode(code).then(function(n){
+    kickToast('踢人', n);
+    adminLoad();
+  });
+}
 function admDelCode(code){
   if (String(code).toUpperCase() === 'ADMIN-XIULI'){ alert('这是你自己的管理员码，不能删除。需要停用请点「停用」。'); return; }
-  if (!confirm('确定删除邀请码「' + code + '」？\n删除后此码立即失效且无法恢复，已经用它登录过的人不受影响。')) return;
+  if (!confirm('确定删除邀请码「' + code + '」？\n\n删除后：\n· 此码立即失效且无法恢复\n· 已经用它登录过的人会被一起踢出')) return;
   admLog('删除邀请码', code);
-  cloudRpc('admin_del_code', { p_token: adminToken, p_code: code }).then(function(res){
-    var d = (res && res.data) || {};
-    if (d.ok !== true) alert(d.msg || '删除失败');
-    adminLoad();
+  kickUsersOfCode(code).then(function(n){
+    return cloudRpc('admin_del_code', { p_token: adminToken, p_code: code }).then(function(res){
+      var d = (res && res.data) || {};
+      if (d.ok !== true){ alert(d.msg || '删除失败'); adminLoad(); return; }
+      kickToast('删除', Math.max(n, d.kicked || 0));
+      adminLoad();
+    });
   });
 }
 function admAddCode(){
@@ -4736,6 +4798,38 @@ function bootApp(){
   restoreDraftSilent();   /* 上次没填完的录入，开页面时自动接上 */
   hideLoginGate();
   registerSW();
+  startAccessWatch();     /* 边用边复查授权：被管理员停用时，页面开着也会被踢回登录 */
+}
+
+/* 登录态"在线复查"：每 10 分钟问一次服务端。
+   只有服务端【明确】说没权限才踢人；网络不通一律放行，避免断网把人误踢。 */
+var accessTimer = null;
+function startAccessWatch(){
+  if (!cloudReady()) return;
+  if (accessTimer) clearInterval(accessTimer);
+  accessTimer = setInterval(recheckAccess, 600000);
+}
+function recheckAccess(){
+  var a = getAuthSafe();
+  if (!a || !a.phone) return Promise.resolve(false);
+  return cloudRpc('check_access', { p_phone: a.phone }).then(function(res){
+    if (!res || res.networkError) return false;        // 断网/服务器不可达 → 不动，绝不误踢
+    var d = res.data || {};
+    if (d.ok === true){
+      saveAuth(a.phone, a.code, Date.now(), d.is_admin === true);
+      applyAdminUI(d.is_admin === true);
+      return false;
+    }
+    /* 服务端明确收回授权 → 立刻踢回登录页 */
+    if (accessTimer){ clearInterval(accessTimer); accessTimer = null; }
+    try { localStorage.removeItem(AUTH_CONFIG.storageKey); } catch (e) {}
+    state.booted = false;
+    showLoginGate();
+    var err = document.getElementById('loginErr');
+    if (err) err.textContent = d.msg || '账号已被管理员停用';
+    toast('登录已被管理员撤销');
+    return true;
+  });
 }
 
 if (document.readyState === 'loading') {
