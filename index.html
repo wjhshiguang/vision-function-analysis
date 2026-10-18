@@ -4235,15 +4235,21 @@ function showOfflineLoginFallback(phone){
   box.appendChild(t1); box.appendChild(t2);
   const btn = document.createElement('button');
   btn.type = 'button';
-  btn.textContent = '离线应急进入（仍需手机号）';
+  btn.textContent = '离线应急进入（仅限本机已验证过的手机号）';
   btn.style.cssText = 'margin-top:10px;width:100%;min-height:44px;cursor:pointer';
   btn.className = 'btn';
   btn.addEventListener('click', function(){
-    if (AUTH_CONFIG.requirePhone && !validPhone((phone || '').trim())){
+    const p = (phone || '').trim();
+    if (AUTH_CONFIG.requirePhone && !validPhone(p)){
       errEl.textContent = '离线进入也需要填写 11 位手机号';
       return;
     }
-    saveAuth((phone || '').trim(), '', 0, false);
+    /* 同上：只放行这台设备上曾短信验证通过的手机号 */
+    if (!smsVerifiedFor(p)){
+      errEl.textContent = '这台设备没有该手机号的短信验证记录，不能离线进入。请联网后重新用短信验证码登录。';
+      return;
+    }
+    saveAuth(p, '', 0, false);
     errEl.textContent = '';
     hideLoginGate();
     showOfflineBanner();
@@ -4355,14 +4361,21 @@ function showSmsUnavailable(phone, errEl){
   const btn = document.createElement('button');
   btn.type = 'button';
   btn.className = 'btn';
-  btn.textContent = '离线应急进入（仍需手机号）';
+  btn.textContent = '离线应急进入（仅限本机已验证过的手机号）';
   btn.style.cssText = 'margin-top:10px;width:100%;min-height:44px;cursor:pointer';
   btn.addEventListener('click', function(){
-    if (AUTH_CONFIG.requirePhone && !validPhone((phone || '').trim())){
+    const p = (phone || '').trim();
+    if (AUTH_CONFIG.requirePhone && !validPhone(p)){
       errEl.textContent = '离线进入也需要填写 11 位手机号';
       return;
     }
-    saveAuth((phone || '').trim(), '', 0, false);
+    /* 加固：必须是这台设备上曾经短信验证通过过的手机号。
+       否则短信服务一挂，任何人随手填个 11 位号码就能跳过邀请码进来。 */
+    if (!smsVerifiedFor(p)){
+      errEl.textContent = '这台设备没有该手机号的短信验证记录，不能离线进入。请联网后重新用短信验证码登录。';
+      return;
+    }
+    saveAuth(p, '', 0, false);
     errEl.textContent = '';
     hideLoginGate();
     showOfflineBanner();
@@ -4419,13 +4432,32 @@ function doLogin(phone, code){
   });
 }
 
-/* 每次打开复查授权：服务端说停用就立刻踢出；网络不通则放行缓存登录态 */
+/* 离线兜底最长宽限时间：一直连不上服务器超过这个时长，就要求重新联网验证。
+   默认 30 天 —— 既能扛住"免费服务闲置被暂停"这类长期中断，又能让被停用/废弃的设备自动失效。
+   想更严就把它改小（如 3 天 = 3*24*60*60*1000）。 */
+const OFFLINE_GRACE_MS = 30 * 24 * 60 * 60 * 1000;
+function offlineTooLong(a){
+  const t = Number((a && (a.lastOk || a.ts)) || 0);
+  if (!t) return false;                       // 没有记录就不额外限制
+  return (Date.now() - t) > OFFLINE_GRACE_MS;
+}
+/* 每次打开复查授权：服务端说停用就立刻踢出；网络不通则放行缓存登录态（有期限） */
 function verifyAccessThenBoot(){
   const a = getAuthSafe();
   if (!a || !a.phone){ showLoginGate(); return; }
   if (!cloudReady()){ bootApp(); return; }
   cloudRpc('check_access', { p_phone: a.phone }).then(function(res){
-    if (res.networkError){ if (CLOUD.offlineWarn) showOfflineBanner(); applyAdminUI(a.isAdmin === true); bootApp(); return; }
+    if (res.networkError){
+      /* 长期连不上服务器 → 不再无限放行，要求联网重新验证（数据仍在本机） */
+      if (offlineTooLong(a)){
+        try { localStorage.removeItem(AUTH_CONFIG.storageKey); } catch(e){}
+        showLoginGate();
+        const e2 = document.getElementById('loginErr');
+        if (e2) e2.textContent = '已超过 30 天没能连上服务器验证授权，请联网后重新登录一次。档案数据存在本机，不会丢失。';
+        return;
+      }
+      if (CLOUD.offlineWarn) showOfflineBanner(); applyAdminUI(a.isAdmin === true); bootApp(); return;
+    }
     const d = res.data || {};
     if (d.ok === true){
       var adm = (d.is_admin === true);
