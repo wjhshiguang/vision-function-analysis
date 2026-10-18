@@ -442,6 +442,50 @@ body.gated{overflow:hidden}
 .login-note{font-size:11.5px;color:var(--ink3);margin-top:16px;line-height:1.6;text-align:center}
 .login-admin{font-size:11px;color:var(--ink3);margin-top:8px;text-align:center;line-height:1.6}
 .btn.blk{width:100%}
+/* 空提示行不占高度：避免卡片里凭空多出两行空白（手机端"比例被拉长"的主要来源之一） */
+.login-ok:empty,.login-err:empty{display:none}
+/* 域名未授权提示（短信服务按 Origin 精确校验，镜像域名下验证码必失败） */
+.login-hostwarn{background:var(--warn-l);border:1px solid #EFC98A;color:#8A5A12;border-radius:11px;
+  padding:9px 11px;font-size:12px;line-height:1.6;margin:0 0 12px;text-align:left}
+.login-hostwarn b{color:#7A4A08}
+.login-hostwarn .hw-go{display:inline-flex;align-items:center;justify-content:center;margin-top:7px;
+  min-height:34px;padding:0 12px;border-radius:8px;background:#B9761A;color:#fff;font-size:12.5px;
+  font-weight:600;text-decoration:none;border:0;cursor:pointer}
+.login-hostwarn .hw-go:active{transform:translateY(1px)}
+
+/* ---------- 登录门禁：手机端尺寸收紧 ---------- */
+/* 登录卡在手机上必须"装得下 + 装不下能滚"，否则短屏机型顶部会被裁掉 */
+.login-gate{overflow-y:auto;overscroll-behavior:contain}
+.login-card{margin:auto}
+@media (max-width:768px){
+  .login-gate{padding:14px;align-items:flex-start}
+  .login-card{padding:22px 18px;border-radius:16px;max-width:420px}
+  .login-brand{gap:9px;margin-bottom:2px}
+  .login-brand .logo{width:38px;height:38px;flex:0 0 38px;border-radius:11px}
+  .login-brand h1{font-size:17px}
+  .login-brand p{font-size:11.5px}
+  .login-sub{font-size:12.5px;line-height:1.6;margin:10px 0 14px}
+  .login-field{margin-bottom:11px}
+  .login-field label{font-size:12px;margin-bottom:5px}
+  .login-field input{min-height:46px;padding:0 12px;border-radius:11px}
+  .login-sms-row{gap:7px}
+  .login-sms-row button{min-height:46px;padding:0 12px;font-size:13px}
+  .login-ok{margin:4px 0 5px;line-height:1.55}
+  .login-err{margin:4px 0 8px;line-height:1.55}
+  .login-note{font-size:11px;margin-top:12px;line-height:1.55}
+  .login-admin{font-size:10.5px;margin-top:6px}
+}
+/* 矮屏（老机型/横屏/键盘弹出）再压一档 */
+@media (max-width:768px) and (max-height:700px){
+  .login-gate{padding:10px}
+  .login-card{padding:18px 16px}
+  .login-sub{margin:8px 0 11px;line-height:1.55}
+  .login-field{margin-bottom:9px}
+  .login-field input,.login-sms-row button{min-height:44px}
+  .login-brand .logo{width:34px;height:34px;flex:0 0 34px}
+  .login-brand h1{font-size:16px}
+  .login-note{margin-top:10px}
+}
 
 /* ---------- 管理员面板 ---------- */
 .adm-mask{position:fixed;inset:0;z-index:10000;background:rgba(16,40,44,.5);display:flex;align-items:flex-start;justify-content:center;padding:24px 16px;overflow:auto}
@@ -511,6 +555,10 @@ body.gated{overflow:hidden}
       </div>
     </div>
     <p class="login-sub">本工具仅限授权用户使用，请输入<strong>手机号</strong>、<strong>短信验证码</strong>与<strong>邀请码</strong>进入。首次输入即完成注册。</p>
+    <div class="login-hostwarn hidden" id="loginHostWarn">
+      <div id="loginHostWarnText">当前访问地址不是短信服务的授权域名，<b>验证码会发送失败</b>。请用正式地址打开。</div>
+      <a class="hw-go" id="loginGoCanon" href="#">前往正式地址</a>
+    </div>
     <form id="loginForm" autocomplete="on" novalidate>
       <div class="login-field">
         <label for="loginPhone">手机号</label>
@@ -1089,9 +1137,93 @@ const WB_CLOUD = {
   publishableKey: 'wbpk_GgVn9QchmyF7WL5PpNxE22_acJrm0U2gvHrOx7TrC7knzCxl6VkkB4E'
 };
 const SMS_OK_KEY = 'wb_vision_smsok_v1';   // 记录本机已通过短信验证的手机号（仅本机标记，非凭证）
+const WB_HOST = (function(){ try { return new URL(WB_CLOUD.endpoint).hostname; } catch (e) { return ''; } })();
+const HOST_JUMP_KEY = 'wb_vision_hostjump_v1';
 let wcloud = null;        // WorkBuddy 云服务客户端
 let pendingOtp = null;    // { phone, verificationId, isExistingUser } 发送验证码后暂存的挑战
 let smsTimer = null;      // 重发倒计时
+
+/* ---- 访问域名守卫 ----
+   云服务的 publishableKey 与「域名」绑定：服务端对预检请求做 Origin 精确校验，
+   非授权域名会直接返回 403 且不带 Access-Control-Allow-Origin，
+   浏览器只能抛出 TypeError: Failed to fetch（SDK 包装成 "request failed before a response was received"）。
+   所以：1) 镜像域名（github.io）自动跳转到正式地址；2) 其它域名给出明确提示与入口。 */
+function canonicalUrl(){ return 'https://' + WB_HOST + '/'; }
+function onBoundHost(){
+  const h = (location.hostname || '').toLowerCase();
+  if (!h) return true;                                  // file:// 本地直接打开，不做拦截
+  if (h === WB_HOST) return true;
+  if (h === 'localhost' || h === '127.0.0.1' || h === '[::1]') return true;
+  return false;
+}
+function isMirrorHost(){ return /\.github\.io$/i.test(location.hostname || ''); }
+/* 当前地址下是否已有本机档案（localStorage 按域名隔离，换域名不会跟随） */
+function localRecordCount(){
+  try {
+    const raw = localStorage.getItem(LS_RECORDS);
+    if (!raw) return 0;
+    const a = JSON.parse(raw);
+    return Array.isArray(a) ? a.length : 0;
+  } catch (e) { return 0; }
+}
+function showHostWarn(text){
+  const box = document.getElementById('loginHostWarn');
+  const t   = document.getElementById('loginHostWarnText');
+  const a   = document.getElementById('loginGoCanon');
+  if (t && text) t.innerHTML = text;
+  if (a) a.setAttribute('href', canonicalUrl());
+  if (box) box.classList.remove('hidden');
+}
+function hideHostWarn(){
+  const box = document.getElementById('loginHostWarn');
+  if (box) box.classList.add('hidden');
+}
+/* 在登录页初始化时调用：只管“地址对不对”，不影响邀请码体系 */
+function guardHost(){
+  if (onBoundHost()){ hideHostWarn(); return; }
+  /* 已登录用户不强行跳走：Supabase 数据接口不限域名，现有档案在本机照常可用；
+     只有“需要用短信验证码登录”的人（未登录）才必须回到授权域名。 */
+  if (typeof isAuthed === 'function' && isAuthed()){ hideHostWarn(); return; }
+  if (!isMirrorHost()){
+    showHostWarn('当前访问地址不是短信服务的授权域名，<b>验证码会发送失败</b>。请用正式地址打开：'
+      + '<br><span style="font-size:11.5px;word-break:break-all">' + canonicalUrl() + '</span>');
+    return;
+  }
+  // 镜像站：自动切到正式地址（只跳一次；加 ?stay=1 可留在镜像站）
+  let jumped = false;
+  try { jumped = sessionStorage.getItem(HOST_JUMP_KEY) === '1'; } catch (e) {}
+  if (jumped || /(?:^|[?&])stay=1\b/.test(location.search)){
+    showHostWarn('已停留在镜像地址，<b>短信验证码无法使用</b>。请点下方按钮用正式地址登录。');
+    return;
+  }
+  /* 当前地址下已有档案时不自动跳走：localStorage 按域名隔离，换了地址看不到原来的档案 */
+  const n = localRecordCount();
+  if (n > 0){
+    showHostWarn('当前镜像地址下存有本机档案 <b>' + n + ' 条</b>（不会丢失），但<b>短信验证码只能在正式地址使用</b>。'
+      + '两个地址的浏览器数据互不相通，切换后需在新地址重新录入或导入。');
+    return;
+  }
+  try { sessionStorage.setItem(HOST_JUMP_KEY, '1'); } catch (e) {}
+  showHostWarn('正在切换到正式地址（短信验证码需要授权域名）…<br>若未自动跳转，请点下方按钮。');
+  setTimeout(function(){
+    try { location.assign(canonicalUrl()); } catch (e) {}
+  }, 900);
+}
+/* 把 SDK / 网络异常翻译成中文可执行的提示（不再把英文原文抛给用户） */
+function smsErrText(err){
+  const m = (err && err.message) ? String(err.message) : '';
+  if ((err && err.kind === 'network') || /failed to fetch|networkerror|load failed|request failed before/i.test(m)){
+    if (!onBoundHost()) return '当前地址未授权短信服务，请点上方「前往正式地址」后重试。';
+    return '网络异常，连不上短信服务。请检查网络（或关闭代理/VPN）后重试。';
+  }
+  if (/rate|too many|frequent|频繁|限流/i.test(m)) return '发送太频繁，请稍后再试。';
+  if (/invalid.*(phone|mobile)|手机号/i.test(m)) return '手机号格式不正确，请检查后重试。';
+  if (/expire|过期/i.test(m)) return '验证码已过期，请重新获取。';
+  if (/code|token/i.test(m) && /invalid|incorrect|mismatch|不正确|错误/i.test(m)) return '验证码不正确，请重新输入。';
+  /* 服务端返回的中文提示照原样展示；纯英文的技术错误不直接抛给门店用户 */
+  if (/[\u4e00-\u9fa5]/.test(m)) return m;
+  return m ? '验证码服务暂时不可用，请稍后再试。' : '验证码服务暂时不可用，请稍后再试。';
+}
 
 function setupWCloud(){
   try {
@@ -4136,6 +4268,13 @@ function sendPhoneCode(){
     if (errEl) errEl.textContent = '请输入正确的 11 位手机号';
     return;
   }
+  /* 域名不对：不必等请求被 403 拦掉再报错，直接给出可执行的入口 */
+  if (!onBoundHost()){
+    showHostWarn('当前访问地址不是短信服务的授权域名，<b>验证码会发送失败</b>。请用正式地址打开：'
+      + '<br><span style="font-size:11.5px;word-break:break-all">' + canonicalUrl() + '</span>');
+    if (errEl) errEl.textContent = '请点上方「前往正式地址」后用正式地址登录。';
+    return;
+  }
   if (!wcloudReady()){
     if (errEl) errEl.textContent = '短信服务暂不可用（未加载成功），请刷新页面重试。';
     return;
@@ -4144,16 +4283,16 @@ function sendPhoneCode(){
   wcloud.auth.sendOtp({ phone: phone }).then(function(sent){
     if (sent && sent.error){
       if (btn){ btn.disabled = false; btn.textContent = '获取验证码'; }
-      if (errEl) errEl.textContent = sent.error.message || '验证码发送失败，请稍后再试';
+      if (errEl) errEl.textContent = smsErrText(sent.error);
       return;
     }
     /* 保存挑战，稍后校验时原样带回（规范要求：发送与校验分开，校验时不再发新码） */
     pendingOtp = { phone: phone, verificationId: sent.data.verificationId, isExistingUser: !!sent.data.isExistingUser };
     if (okEl) okEl.textContent = '验证码已发送至 ' + phone.slice(0, 3) + '****' + phone.slice(7);
     startSmsCountdown();
-  }).catch(function(){
+  }).catch(function(err){
     if (btn){ btn.disabled = false; btn.textContent = '获取验证码'; }
-    if (errEl) errEl.textContent = '网络异常，验证码发送失败，请稍后再试';
+    if (errEl) errEl.textContent = smsErrText(err);
   });
 }
 /* 校验短信验证码，返回 Promise<{ok, msg}> */
@@ -4170,12 +4309,12 @@ function verifyPhoneCode(phone, code){
       isExistingUser: pendingOtp.isExistingUser,
       token: code
     }).then(function(done){
-      if (done && done.error){ resolve({ ok:false, msg: done.error.message || '验证码不正确' }); return; }
+      if (done && done.error){ resolve({ ok:false, msg: smsErrText(done.error) }); return; }
       pendingOtp = null;
       markSmsVerified(phone);
       resolve({ ok:true });
-    }).catch(function(){
-      resolve({ ok:false, msg:'网络异常，验证失败，请稍后再试' });
+    }).catch(function(err){
+      resolve({ ok:false, msg: smsErrText(err) });
     });
   });
 }
@@ -4299,6 +4438,8 @@ function doLogout(){
   try { localStorage.removeItem(SMS_OK_KEY); } catch(e){}
   pendingOtp = null;
   state.booted = false;
+  /* 退出后要重新走短信登录：镜像域名下必然失败，直接回到授权域名 */
+  if (!onBoundHost()) { location.replace(canonicalUrl()); return; }
   location.reload();
 }
 function bindLogin(){
@@ -4548,6 +4689,8 @@ function init(){
   bindAdmin();
   /* 初始化短信登录客户端（失败不阻断：登录页会提示并给出离线应急入口） */
   try { setupWCloud(); } catch (e) { wcloud = null; }
+  /* 访问域名守卫：镜像域名下短信接口会被 403 拦掉，提前把用户带到正式地址 */
+  try { guardHost(); } catch (e) {}
   if (!isAuthed()) { showLoginGate(); return; }
   verifyAccessThenBoot();
 }
