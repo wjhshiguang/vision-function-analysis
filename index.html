@@ -67,6 +67,12 @@ svg{display:block}
 .btn.who .avm{width:22px;height:22px;border-radius:50%;background:var(--primary-l);color:var(--primary-d);
   display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex:0 0 22px}
 .btn.who .wlab{max-width:76px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* 管理入口：桌面由侧边栏承载；手机端侧边栏是隐藏的，用顶栏图标按钮补上（仅 is_admin 才显示） */
+#navAdminTop{display:none}
+@media (max-width:768px){
+  #navAdminTop{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:0 11px}
+  #navAdminTop .adm-lbl{display:none}
+}
 .nav{display:flex;flex-direction:column;gap:4px;flex:1}
 .nav button{
   display:flex;align-items:center;gap:10px;width:100%;padding:10px 12px;border:0;background:transparent;
@@ -671,6 +677,10 @@ body.gated{overflow:hidden}
         <div class="desc" id="viewDesc">复查到期与逾期的顾客，一条条处理掉</div>
       </div>
       <div class="spacer"></div>
+      <button class="btn adm hidden" id="navAdminTop" type="button" title="管理">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5l7.5 3v5.2c0 4.3-3.1 7.4-7.5 8.8-4.4-1.4-7.5-4.5-7.5-8.8V6.5z"/><path d="M9.2 12.2l2 2 3.6-4"/></svg>
+        <span class="adm-lbl">管理</span>
+      </button>
       <button class="btn who" id="btnWhoTop" type="button" title="修改我的名称">
         <span class="avm" id="whoTopAv">我</span><span class="wlab" id="whoTopLabel">我</span>
       </button>
@@ -4472,11 +4482,15 @@ function bindLogin(){
 /* ============================== 22.6 管理员面板 ============================== */
 var adminToken = '';   // 仅存内存：刷新页面即需重新输入管理员密码
 function applyAdminUI(isAdmin){
-  /* 不再用 is_admin 本地标记决定是否显示「管理」入口：避免“用管理员手机号登录”
-     会让顾客看到该按钮而暴露管理员身份。改为对【所有已登录用户】统一显示，
-     点开后仍需输入管理员密码（openAdmin 已强制走密码框），不泄露任何权限信息。 */
-  var b = document.getElementById('navAdmin');
-  if (b){ b.classList.remove('hidden'); }
+  /* 「管理」入口只按服务端 check_access 返回的 is_admin 显示：
+     非管理员连入口都看不到，避免顾客/同行误以为自己有权限。
+     即便管理员本人，点开后仍必须输入管理员密码（openAdmin 强制走密码框），
+     且所有踢人/发码操作都要求服务端票据 —— 前端改不动后端判定。 */
+  var adm = (isAdmin === true);
+  var b = document.getElementById('navAdmin');      // 桌面：侧边栏
+  if (b) b.classList.toggle('hidden', !adm);
+  var t = document.getElementById('navAdminTop');   // 手机：顶栏（侧边栏在手机端是隐藏的）
+  if (t) t.classList.toggle('hidden', !adm);
 }
 function admEl(id){ return document.getElementById(id); }
   /* 安全策略：管理面板一律要求输入管理员密码，不再提供「凭手机号免密进入」。
@@ -4670,6 +4684,7 @@ function randAdmCode(){
 function bindAdmin(){
   var b;
   b = admEl('navAdmin');      if (b) b.onclick  = openAdmin;
+  b = admEl('navAdminTop');   if (b) b.onclick  = openAdmin;
   b = admEl('admClose');      if (b) b.onclick  = closeAdmin;
   b = admEl('admLoginBtn');   if (b) b.onclick  = adminLogin;
   b = admEl('admReload');     if (b) b.onclick  = adminLoad;
