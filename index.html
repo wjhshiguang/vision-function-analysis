@@ -1087,7 +1087,7 @@ body.gated{overflow:hidden}
         <div class="adm-sec">
           <div class="adm-sec-h">修改管理员密码</div>
           <div class="adm-form">
-            <input id="admNewPass" type="password" placeholder="新密码（至少 6 位）" autocomplete="new-password">
+            <input id="admNewPass" type="password" placeholder="新密码（至少 8 位）" autocomplete="new-password">
             <button class="btn sm" id="admChangePass" type="button">修改</button>
           </div>
           <div class="adm-err" id="admPassErr"></div>
@@ -4763,7 +4763,8 @@ function admAddCode(){
 }
 function admChangePass(){
   var np = admEl('admNewPass').value, err = admEl('admPassErr');
-  if (!np || np.length < 6){ err.textContent = '新密码至少 6 位'; return; }
+  /* 服务端加固后要求 8 位（见 安全加固_一次性执行.sql），这里保持一致 */
+  if (!np || np.length < 8){ err.textContent = '新密码至少 8 位'; return; }
   cloudRpc('admin_change_pass', { p_token: adminToken, p_new: np }).then(function(res){
     var d = (res && res.data) || {};
     if (d.ok === true){ err.textContent = ''; admEl('admNewPass').value = ''; admLog('修改管理员密码', ''); alert('管理员密码已修改'); }
